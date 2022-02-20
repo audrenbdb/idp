@@ -1,7 +1,6 @@
 package idp
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 )
@@ -17,15 +16,22 @@ type LoginService interface {
 	Authenticator
 }
 
-func serveTemplate(name string) http.HandlerFunc {
-	t, ok := templates[name]
-	if !ok {
-		log.Fatal("template missing")
-	}
-	return func(w http.ResponseWriter, r *http.Request) {
-		err := t.Execute(w, nil)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+// closure to serve embed template page
+func serveTemplateFunc(idpName string) func(tmplName string) http.HandlerFunc {
+	return func(tmplName string) http.HandlerFunc {
+		t, ok := templates[tmplName]
+		if !ok {
+			log.Fatal("template missing")
+		}
+		return func(w http.ResponseWriter, r *http.Request) {
+			err := t.Execute(w, struct {
+				IDP string
+			}{
+				IDP: idpName,
+			})
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
 		}
 	}
 }
@@ -41,14 +47,17 @@ func cors(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func StartServer(port int, oauth OauthService, login LoginService) error {
+func StartServer(idpName, addr string, oauth OauthService, login LoginService) error {
+	serveTemplate := serveTemplateFunc(idpName)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/login", serveTemplate("login.html"))
 	mux.HandleFunc("/client", serveTemplate("client.html"))
-	mux.HandleFunc("/api/login", HandleLogin(login))
+	mux.HandleFunc("/api/login", HandleLogin(idpName, login))
 	mux.HandleFunc("/api/clients", HandlePostClient(oauth))
 	mux.HandleFunc("/token", cors(HandleGetAccessToken(oauth)))
 	mux.HandleFunc("/user", cors(HandleGetUser(oauth)))
-	mux.HandleFunc("/auth", HandleAuth(oauth))
-	return http.ListenAndServe(fmt.Sprintf(":%d", port), mux)
+	mux.HandleFunc("/auth", HandleAuth(idpName, oauth))
+	mux.HandleFunc("/", serveTemplate("404.html"))
+	return http.ListenAndServe(addr, mux)
 }

@@ -41,6 +41,7 @@ type ClientMaker interface {
 }
 
 type authError struct {
+	IDP        string
 	StatusCode int
 	Message    string
 }
@@ -157,7 +158,7 @@ func parseAccessTokenForm(r *http.Request) (AccessTokenForm, error) {
 	return form, nil
 }
 
-func HandleLogin(auth Authenticator) http.HandlerFunc {
+func HandleLogin(idpName string, auth Authenticator) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cred, err := parseLoginForm(r)
 		if err != nil {
@@ -170,7 +171,7 @@ func HandleLogin(auth Authenticator) http.HandlerFunc {
 			return
 		}
 		http.SetCookie(w, &http.Cookie{
-			Name:     "diateam_oauth_session",
+			Name:     idpName + "_oauth_session",
 			Secure:   true,
 			Path:     "/",
 			HttpOnly: true,
@@ -207,23 +208,23 @@ func parseLoginForm(r *http.Request) (Credential, error) {
 	return cred, nil
 }
 
-func HandleAuth(auth Authorizer) http.HandlerFunc {
+func HandleAuth(idpName string, auth Authorizer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
 		form, err := parseAuthorizationForm(r)
 		if err != nil {
-			informBadRequest(w, err)
+			informBadRequest(w, err, idpName)
 			return
 		}
 
 		err = auth.AuthorizeClient(ctx, form)
 		if err != nil {
-			handleAuthClientError(w, r, form.RedirectURI, err)
+			handleAuthClientError(w, r, idpName, form.RedirectURI, err)
 			return
 		}
 
-		session, _ := r.Cookie("diateam_oauth_session")
+		session, _ := r.Cookie(idpName + "_oauth_session")
 		if session == nil || form.Prompt == "login" {
 			redirectToLogin(w, r)
 			return
@@ -253,11 +254,11 @@ func redirectToLogin(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func handleAuthClientError(w http.ResponseWriter, r *http.Request, redirectURI string, err error) {
+func handleAuthClientError(w http.ResponseWriter, r *http.Request, idpName, redirectURI string, err error) {
 	var errParam string
 	switch err {
 	case ErrMismatchingRedirectURI, ErrInvalidClientID:
-		informBadRequest(w, err)
+		informBadRequest(w, err, idpName)
 	case ErrClientUnauthorized:
 		errParam = unauthorizedClient
 	case ErrTemporarilyUnavailable:
@@ -296,10 +297,11 @@ func parseAuthorizationForm(r *http.Request) (form AuthorizationForm, err error)
 	return form, nil
 }
 
-func informBadRequest(w http.ResponseWriter, err error) {
+func informBadRequest(w http.ResponseWriter, err error, idpName string) {
 	informErrorOccured(w, authError{
 		StatusCode: http.StatusBadRequest,
 		Message:    err.Error(),
+		IDP:        idpName,
 	})
 }
 

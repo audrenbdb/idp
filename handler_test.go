@@ -323,6 +323,8 @@ func TestHandleGetAccessToken(t *testing.T) {
 }
 
 func TestHandleLogin(t *testing.T) {
+	idpName := "Gogal"
+
 	t.Run("Given request is missing email in its form body should return bad request", func(t *testing.T) {
 		formValues := url.Values{}
 		formValues.Set("password", "123")
@@ -331,7 +333,7 @@ func TestHandleLogin(t *testing.T) {
 		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		idp.HandleLogin(nil)(w, r)
+		idp.HandleLogin(idpName, nil)(w, r)
 		result := w.Result()
 
 		assert.Equal(t, http.StatusBadRequest, result.StatusCode)
@@ -345,7 +347,7 @@ func TestHandleLogin(t *testing.T) {
 		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		idp.HandleLogin(nil)(w, r)
+		idp.HandleLogin(idpName, nil)(w, r)
 		result := w.Result()
 
 		assert.Equal(t, http.StatusBadRequest, result.StatusCode)
@@ -371,7 +373,7 @@ func TestHandleLogin(t *testing.T) {
 			AuthenticateUser(r.Context(), cred).
 			Return(idp.Session{}, idp.ErrEmailInvalid)
 
-		idp.HandleLogin(authenticator)(w, r)
+		idp.HandleLogin(idpName, authenticator)(w, r)
 		result := w.Result()
 
 		assert.Equal(t, http.StatusBadRequest, result.StatusCode)
@@ -397,7 +399,7 @@ func TestHandleLogin(t *testing.T) {
 			AuthenticateUser(r.Context(), cred).
 			Return(idp.Session{}, idp.ErrPasswordInvalid)
 
-		idp.HandleLogin(authenticator)(w, r)
+		idp.HandleLogin(idpName, authenticator)(w, r)
 		result := w.Result()
 
 		assert.Equal(t, http.StatusBadRequest, result.StatusCode)
@@ -423,7 +425,7 @@ func TestHandleLogin(t *testing.T) {
 			AuthenticateUser(r.Context(), cred).
 			Return(idp.Session{}, idp.ErrEmailOrPasswordMismatch)
 
-		idp.HandleLogin(authenticator)(w, r)
+		idp.HandleLogin(idpName, authenticator)(w, r)
 		result := w.Result()
 
 		assert.Equal(t, http.StatusUnauthorized, result.StatusCode)
@@ -453,12 +455,13 @@ func TestHandleLogin(t *testing.T) {
 			AuthenticateUser(r.Context(), cred).
 			Return(session, nil)
 
-		idp.HandleLogin(authenticator)(w, r)
-		assert.Contains(t, w.Header().Get("Set-Cookie"), "diateam_oauth_session=xyz")
+		idp.HandleLogin(idpName, authenticator)(w, r)
+		assert.Contains(t, w.Header().Get("Set-Cookie"), idpName+"_oauth_session=xyz")
 	})
 }
 
 func TestHandleAuth(t *testing.T) {
+	idpName := "Gogal"
 	t.Run("Given request is missing redirection URI in its form body, "+
 		"authorization server SHOULD inform the resource owner and NOT redirect", func(t *testing.T) {
 		formValues := url.Values{}
@@ -469,7 +472,7 @@ func TestHandleAuth(t *testing.T) {
 		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		idp.HandleAuth(nil)(w, r)
+		idp.HandleAuth(idpName, nil)(w, r)
 		result := w.Result()
 
 		b, err := io.ReadAll(result.Body)
@@ -489,7 +492,7 @@ func TestHandleAuth(t *testing.T) {
 		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		idp.HandleAuth(nil)(w, r)
+		idp.HandleAuth(idpName, nil)(w, r)
 		result := w.Result()
 
 		b, err := io.ReadAll(result.Body)
@@ -510,7 +513,7 @@ func TestHandleAuth(t *testing.T) {
 		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		idp.HandleAuth(nil)(w, r)
+		idp.HandleAuth(idpName, nil)(w, r)
 		result := w.Result()
 
 		b, err := io.ReadAll(result.Body)
@@ -546,7 +549,7 @@ func TestHandleAuth(t *testing.T) {
 			AuthorizeClient(r.Context(), form).
 			Return(idp.ErrMismatchingRedirectURI)
 
-		idp.HandleAuth(authorizer)(w, r)
+		idp.HandleAuth(idpName, authorizer)(w, r)
 		result := w.Result()
 
 		b, err := io.ReadAll(result.Body)
@@ -582,7 +585,7 @@ func TestHandleAuth(t *testing.T) {
 			AuthorizeClient(r.Context(), form).
 			Return(idp.ErrInvalidClientID)
 
-		idp.HandleAuth(authorizer)(w, r)
+		idp.HandleAuth(idpName, authorizer)(w, r)
 		result := w.Result()
 
 		b, err := io.ReadAll(result.Body)
@@ -642,7 +645,7 @@ func TestHandleAuth(t *testing.T) {
 				AuthorizeClient(r.Context(), form).
 				Return(test.authClientErr)
 
-			idp.HandleAuth(authorizer)(w, r)
+			idp.HandleAuth(idpName, authorizer)(w, r)
 			result := w.Result()
 
 			wantLoc := fmt.Sprintf("%s?%s", form.RedirectURI, "error="+test.wantErrParamValue)
@@ -672,7 +675,7 @@ func TestHandleAuth(t *testing.T) {
 		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		r.AddCookie(&http.Cookie{
-			Name:  "diateam_oauth_session",
+			Name:  idpName + "_oauth_session",
 			Value: sessionID,
 		})
 
@@ -686,7 +689,7 @@ func TestHandleAuth(t *testing.T) {
 			NewAuthCode(r.Context(), sessionID, form).
 			Return(wantAuthCode, nil)
 
-		idp.HandleAuth(authorizer)(w, r)
+		idp.HandleAuth(idpName, authorizer)(w, r)
 		result := w.Result()
 
 		loc := result.Header.Get("location")
@@ -723,7 +726,7 @@ func TestHandleAuth(t *testing.T) {
 			Return(nil)
 
 		r.AddCookie(&http.Cookie{
-			Name:  "diateam_oauth_session",
+			Name:  idpName + "_oauth_session",
 			Value: sessionID,
 		})
 
@@ -731,7 +734,7 @@ func TestHandleAuth(t *testing.T) {
 			NewAuthCode(r.Context(), sessionID, form).
 			Return("", errors.New("session not found"))
 
-		idp.HandleAuth(authorizer)(w, r)
+		idp.HandleAuth(idpName, authorizer)(w, r)
 		result := w.Result()
 
 		loc := result.Header.Get("location")
@@ -769,11 +772,11 @@ func TestHandleAuth(t *testing.T) {
 			Return(nil)
 
 		r.AddCookie(&http.Cookie{
-			Name:  "diateam_oauth_session",
+			Name:  idpName + "_oauth_session",
 			Value: sessionID,
 		})
 
-		idp.HandleAuth(authorizer)(w, r)
+		idp.HandleAuth(idpName, authorizer)(w, r)
 		result := w.Result()
 
 		loc := result.Header.Get("location")

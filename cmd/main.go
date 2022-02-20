@@ -11,9 +11,12 @@ import (
 	"os"
 )
 
-var port = flag.Int("port", 8086, "Set the idp server port")
+var addr = flag.String("addr", "localhost:8080", "Set the idp server address")
+var idpName = flag.String("name", "App", "Your idp name")
 
 func main() {
+	flag.Parse()
+
 	db := startMongo()
 	accessRepo := mongo.NewAccessRepository(db)
 	authRepo := mongo.NewAuthorizationRepository(db)
@@ -33,7 +36,7 @@ func main() {
 		SessionRepo: sessionRepo,
 	})
 
-	if err := idp.StartServer(*port, oauthService, loginService); err != nil {
+	if err := idp.StartServer(*idpName, *addr, oauthService, loginService); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -41,7 +44,7 @@ func main() {
 func startMongo() *mgo.Database {
 	mongoURI := os.Getenv("MONGO_URI")
 	if mongoURI == "" {
-		log.Fatal("Env MONGO_URI not set and is required for persistence")
+		log.Println("env variable \"MONGO_URI\" is not set. Using default instead.")
 	}
 	client, err := mgo.Connect(context.Background(),
 		options.Client().ApplyURI(mongoURI))
