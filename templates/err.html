@@ -1,5 +1,12 @@
 {{template "main" .}}
 {{define "content"}}
-<p>Can't proceed.</p>
-<p>{{.StatusCode}}: {{.Message}}</p>
+<style>
+    .auth-err {
+        border: 1px solid red;
+        padding: 25px;
+    }
+</style>
+<div class="auth-err">
+    <p>{{.StatusCode}}: {{.Message}}</p>
+</div>
 {{end}}
