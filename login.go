@@ -46,7 +46,7 @@ func NewLoginService(opt LoginServiceOpt) *loginService {
 		opt.PasswordMatchHash = password.MatchHash
 	}
 	if opt.NewRandID == nil {
-		opt.NewRandID = rand.IDGenerator(40)
+		opt.NewRandID = rand.IDGenerator(70)
 	}
 	if opt.Now == nil {
 		opt.Now = time.Now
