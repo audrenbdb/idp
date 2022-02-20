@@ -2,9 +2,9 @@ package idp
 
 import (
 	"context"
-	"errors"
 	"idp/password"
 	"idp/rand"
+	"strings"
 	"time"
 )
 
@@ -61,29 +61,38 @@ func NewLoginService(opt LoginServiceOpt) *loginService {
 	}
 }
 
-func (s *loginService) AuthenticateUser(ctx context.Context, cred Credential) (Session, error) {
+func (s *loginService) SignIn(ctx context.Context, cred Credential) (Session, error) {
 	if err := cred.EnsureValid(); err != nil {
 		return Session{}, err
 	}
 	user, err := s.userRepo.GetUserByEmail(ctx, cred.Email)
-	switch {
-	case errors.Is(err, ErrUserNotFound):
-		return s.authenticateNewUser(ctx, cred)
-	case !errors.Is(err, nil):
+	if err != nil {
 		return Session{}, err
-	default:
-		return s.authenticateExistingUser(ctx, cred, user)
 	}
+	return s.authenticateExistingUser(ctx, cred, user)
 }
 
-func (s *loginService) authenticateNewUser(ctx context.Context, cred Credential) (Session, error) {
-	pw, err := s.hashPassword(cred.Password)
+func (s *loginService) RegisterUser(ctx context.Context, form UserForm) (Session, error) {
+	if err := form.EnsureValid(); err != nil {
+		return Session{}, err
+	}
+	_, err := s.userRepo.GetUserByEmail(ctx, form.Email)
+	if err == nil {
+		return Session{}, ErrUserAlreadyExists
+	}
+	return s.authenticateNewUser(ctx, form)
+}
+
+func (s *loginService) authenticateNewUser(ctx context.Context, form UserForm) (Session, error) {
+	pw, err := s.hashPassword(form.Password)
 	if err != nil {
 		return Session{}, err
 	}
 	user := User{
 		UID:            s.newRandID(),
-		Email:          cred.Email,
+		FirstName:      form.FirstName,
+		LastName:       strings.ToUpper(form.LastName),
+		Email:          strings.ToLower(form.Email),
 		HashedPassword: pw,
 	}
 	user, err = s.userRepo.SaveUser(ctx, user)

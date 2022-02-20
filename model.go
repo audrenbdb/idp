@@ -93,9 +93,35 @@ type Token struct {
 }
 
 type User struct {
-	UID            string `json:"uid,omitempty"`
-	Email          string `json:"email,omitempty"`
+	UID            string `json:"uid,omitempty" bson:"uid"`
+	FirstName      string `json:"firstName,omitempty" bson:"firstName"`
+	LastName       string `json:"lastName,omitempty" bson:"lastName"`
+	Email          string `json:"email,omitempty" bson:"email"`
 	HashedPassword []byte `json:"-" bson:"hashedPassword"`
+}
+
+type UserForm struct {
+	FirstName string
+	LastName  string
+	Email     string
+	Password  string
+}
+
+func (u UserForm) EnsureValid() error {
+	if len(u.FirstName) < 2 {
+		return ErrUserFirstNameInvalid
+	}
+	if len(u.LastName) < 2 {
+		return ErrUserLastNameInvalid
+	}
+	_, err := mail.ParseAddress(u.Email)
+	if err != nil {
+		return ErrEmailInvalid
+	}
+	if len(u.Password) < 6 {
+		return ErrPasswordInvalid
+	}
+	return nil
 }
 
 type Authorization struct {

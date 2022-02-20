@@ -93,8 +93,10 @@ func TestAccessUser(t *testing.T) {
 		bobAccess := idp.Access{
 			ID: "fgh",
 			User: idp.User{
-				UID:   "xyz",
-				Email: "bobsap@gmail.com",
+				UID:       "xyz",
+				FirstName: "Bob",
+				LastName:  "Sap",
+				Email:     "bobsap@gmail.com",
 			},
 			Expiration: fakeNow().Add(10 * time.Minute),
 		}

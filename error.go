@@ -27,11 +27,16 @@ var (
 	ErrInvalidClientID         = ErrUnauthorized{"client_id provided is invalid"}
 	ErrMismatchingRedirectURI  = ErrUnauthorized{"mismatching redirect_uri"}
 	ErrMissingBearerToken      = ErrUnauthorized{"missing bearer token"}
+	ErrUserAlreadyExists       = ErrUnauthorized{"user already exists"}
 
 	ErrMissingAppName         = ErrBadRequest{"request is missing app name"}
 	ErrMissingAppRedirectURIs = ErrBadRequest{"request is missing redirect_uris"}
 	ErrEmailInvalid           = ErrBadRequest{"email is invalid"}
 	ErrEmailMissing           = ErrBadRequest{"email is missing"}
+
+	ErrUserFirstNameInvalid = ErrBadRequest{"first name is invalid"}
+	ErrUserLastNameInvalid  = ErrBadRequest{"last name is invalid"}
+
 	ErrMissingAuthCode        = ErrBadRequest{"request is missing code parameter"}
 	ErrMissingClientID        = ErrBadRequest{"request is missing client_id"}
 	ErrMissingGrantType       = ErrBadRequest{"request is missing grant_type=authorization_code"}

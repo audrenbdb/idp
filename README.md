@@ -20,7 +20,11 @@ Otherwise use default mongo uri: `mongodb://localhost:27017`
 - `/token` : get an access token from an authorization code
 - `/user` : get user identity
 
-The consent is **implicit** after user logged in, and user identity is just its email.
+The consent is **implicit** after user logged in. User identity has the following properties :
+- uid: a unique identifier
+- firstName: user first name
+- lastName: user last name
+- email: user email
 
 For an extensive documentation, please read source and OAuth2 spec as refered : https://datatracker.ietf.org/doc/html/rfc6749
 

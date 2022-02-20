@@ -51,9 +51,11 @@ func StartServer(idpName, addr string, oauth OauthService, login LoginService) e
 	serveTemplate := serveTemplateFunc(idpName)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/login", serveTemplate("login.html"))
+	mux.HandleFunc("/sign-in", serveTemplate("sign-in.html"))
+	mux.HandleFunc("/sign-up", serveTemplate("sign-up.html"))
 	mux.HandleFunc("/client", serveTemplate("client.html"))
-	mux.HandleFunc("/api/login", HandleLogin(idpName, login))
+	mux.HandleFunc("/api/sign-in", HandleSignIn(idpName, login))
+	mux.HandleFunc("/api/sign-up", HandleSignUp(idpName, login))
 	mux.HandleFunc("/api/clients", HandlePostClient(oauth))
 	mux.HandleFunc("/token", cors(HandleGetAccessToken(oauth)))
 	mux.HandleFunc("/user", cors(HandleGetUser(oauth)))

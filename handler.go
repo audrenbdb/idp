@@ -25,7 +25,8 @@ type Authorizer interface {
 
 // Authenticator authenticates a user
 type Authenticator interface {
-	AuthenticateUser(ctx context.Context, cred Credential) (Session, error)
+	SignIn(ctx context.Context, cred Credential) (Session, error)
+	RegisterUser(ctx context.Context, form UserForm) (Session, error)
 }
 
 type TokenGetter interface {
@@ -158,39 +159,75 @@ func parseAccessTokenForm(r *http.Request) (AccessTokenForm, error) {
 	return form, nil
 }
 
-func HandleLogin(idpName string, auth Authenticator) http.HandlerFunc {
+func HandleSignUp(idpName string, auth Authenticator) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		cred, err := parseLoginForm(r)
+		form, err := parseSignUpForm(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		session, err := auth.AuthenticateUser(r.Context(), cred)
+		session, err := auth.RegisterUser(r.Context(), form)
 		if err != nil {
-			handleAuthenticatingError(w, err)
+			handleErr(w, err)
 			return
 		}
-		http.SetCookie(w, &http.Cookie{
-			Name:     idpName + "_oauth_session",
-			Secure:   true,
-			Path:     "/",
-			HttpOnly: true,
-			Value:    session.ID,
-			Expires:  session.Expiration,
-		})
+		setSessionCookie(idpName, session, w)
 	}
 }
 
-func handleAuthenticatingError(w http.ResponseWriter, err error) {
-	switch err {
-	case ErrEmailInvalid, ErrPasswordInvalid:
+func handleErr(w http.ResponseWriter, err error) {
+	switch err.(type) {
+	case ErrBadRequest:
 		http.Error(w, err.Error(), http.StatusBadRequest)
-	case ErrEmailOrPasswordMismatch:
+	case ErrUnauthorized:
 		http.Error(w, err.Error(), http.StatusUnauthorized)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func parseLoginForm(r *http.Request) (Credential, error) {
+func HandleSignIn(idpName string, auth Authenticator) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cred, err := parseSignInForm(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		session, err := auth.SignIn(r.Context(), cred)
+		if err != nil {
+			handleErr(w, err)
+			return
+		}
+		setSessionCookie(idpName, session, w)
+	}
+}
+
+func setSessionCookie(idpName string, session Session, w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     idpName + "_oauth_session",
+		Secure:   true,
+		Path:     "/",
+		HttpOnly: true,
+		Value:    session.ID,
+		Expires:  session.Expiration,
+	})
+}
+
+func parseSignUpForm(r *http.Request) (UserForm, error) {
+	err := r.ParseForm()
+	if err != nil {
+		return UserForm{}, err
+	}
+	form := UserForm{
+		FirstName: r.Form.Get("first_name"),
+		LastName:  r.Form.Get("last_name"),
+		Email:     r.Form.Get("email"),
+		Password:  r.Form.Get("password"),
+	}
+	return form, nil
+}
+
+func parseSignInForm(r *http.Request) (Credential, error) {
 	err := r.ParseForm()
 	if err != nil {
 		return Credential{}, err
@@ -250,7 +287,7 @@ func redirectAuthCode(code string, form AuthorizationForm, w http.ResponseWriter
 }
 
 func redirectToLogin(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "/login?"+r.Form.Encode(), http.StatusFound)
+	http.Redirect(w, r, "/sign-in?"+r.Form.Encode(), http.StatusFound)
 	return
 }
 

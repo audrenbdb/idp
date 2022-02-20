@@ -76,9 +76,13 @@ func (s *oauthService) AccessUser(ctx context.Context, accessID string) (User, e
 	if s.isAccessExpired(access) {
 		return User{}, ErrAccessExpired
 	}
+	// explicit new structure over access.User
+	// to avoid passing hashed password
 	return User{
-		UID:   access.User.UID,
-		Email: access.User.Email,
+		UID:       access.User.UID,
+		FirstName: access.User.FirstName,
+		LastName:  access.User.LastName,
+		Email:     access.User.Email,
 	}, nil
 }
 

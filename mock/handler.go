@@ -87,19 +87,34 @@ func (m *Authenticator) EXPECT() *AuthenticatorMockRecorder {
 	return m.recorder
 }
 
-// AuthenticateUser mocks base method.
-func (m *Authenticator) AuthenticateUser(ctx context.Context, cred idp.Credential) (idp.Session, error) {
+// RegisterUser mocks base method.
+func (m *Authenticator) RegisterUser(ctx context.Context, form idp.UserForm) (idp.Session, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AuthenticateUser", ctx, cred)
+	ret := m.ctrl.Call(m, "RegisterUser", ctx, form)
 	ret0, _ := ret[0].(idp.Session)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// AuthenticateUser indicates an expected call of AuthenticateUser.
-func (mr *AuthenticatorMockRecorder) AuthenticateUser(ctx, cred interface{}) *gomock.Call {
+// RegisterUser indicates an expected call of RegisterUser.
+func (mr *AuthenticatorMockRecorder) RegisterUser(ctx, form interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AuthenticateUser", reflect.TypeOf((*Authenticator)(nil).AuthenticateUser), ctx, cred)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterUser", reflect.TypeOf((*Authenticator)(nil).RegisterUser), ctx, form)
+}
+
+// SignIn mocks base method.
+func (m *Authenticator) SignIn(ctx context.Context, cred idp.Credential) (idp.Session, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SignIn", ctx, cred)
+	ret0, _ := ret[0].(idp.Session)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SignIn indicates an expected call of SignIn.
+func (mr *AuthenticatorMockRecorder) SignIn(ctx, cred interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignIn", reflect.TypeOf((*Authenticator)(nil).SignIn), ctx, cred)
 }
 
 // TokenGetter is a mock of TokenGetter interface.

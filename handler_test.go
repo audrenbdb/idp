@@ -322,7 +322,72 @@ func TestHandleGetAccessToken(t *testing.T) {
 	})
 }
 
-func TestHandleLogin(t *testing.T) {
+func TestHandleSignUp(t *testing.T) {
+	idpName := "Gogal"
+
+	t.Run("Given request should return bad request if form is not validated by server", func(t *testing.T) {
+		form := idp.UserForm{
+			FirstName: "Jean",
+			LastName:  "Do",
+			Email:     "jean@do.org",
+			Password:  "123456",
+		}
+
+		formValues := url.Values{}
+		formValues.Set("first_name", form.FirstName)
+		formValues.Set("last_name", form.LastName)
+		formValues.Set("email", form.Email)
+		formValues.Set("password", form.Password)
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		ctrl := gomock.NewController(t)
+		authenticator := mock.NewAuthenticator(ctrl)
+		authenticator.EXPECT().
+			RegisterUser(r.Context(), form).
+			Return(idp.Session{}, idp.ErrEmailInvalid)
+
+		idp.HandleSignUp(idpName, authenticator)(w, r)
+		result := w.Result()
+
+		assert.Equal(t, http.StatusBadRequest, result.StatusCode)
+	})
+
+	t.Run("Given request should succeed should return to auth with session", func(t *testing.T) {
+		form := idp.UserForm{
+			FirstName: "Jean",
+			LastName:  "Do",
+			Email:     "jean@do.org",
+			Password:  "123456",
+		}
+
+		formValues := url.Values{}
+		formValues.Set("first_name", form.FirstName)
+		formValues.Set("last_name", form.LastName)
+		formValues.Set("email", form.Email)
+		formValues.Set("password", form.Password)
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		ctrl := gomock.NewController(t)
+		authenticator := mock.NewAuthenticator(ctrl)
+		authenticator.EXPECT().
+			RegisterUser(r.Context(), form).
+			Return(idp.Session{
+				ID: "123",
+			}, nil)
+
+		idp.HandleSignUp(idpName, authenticator)(w, r)
+		assert.Contains(t, w.Header().Get("Set-Cookie"), idpName+"_oauth_session=123")
+
+	})
+}
+
+func TestHandleSignIn(t *testing.T) {
 	idpName := "Gogal"
 
 	t.Run("Given request is missing email in its form body should return bad request", func(t *testing.T) {
@@ -333,7 +398,7 @@ func TestHandleLogin(t *testing.T) {
 		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		idp.HandleLogin(idpName, nil)(w, r)
+		idp.HandleSignIn(idpName, nil)(w, r)
 		result := w.Result()
 
 		assert.Equal(t, http.StatusBadRequest, result.StatusCode)
@@ -347,7 +412,7 @@ func TestHandleLogin(t *testing.T) {
 		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		idp.HandleLogin(idpName, nil)(w, r)
+		idp.HandleSignIn(idpName, nil)(w, r)
 		result := w.Result()
 
 		assert.Equal(t, http.StatusBadRequest, result.StatusCode)
@@ -370,10 +435,10 @@ func TestHandleLogin(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		authenticator := mock.NewAuthenticator(ctrl)
 		authenticator.EXPECT().
-			AuthenticateUser(r.Context(), cred).
+			SignIn(r.Context(), cred).
 			Return(idp.Session{}, idp.ErrEmailInvalid)
 
-		idp.HandleLogin(idpName, authenticator)(w, r)
+		idp.HandleSignIn(idpName, authenticator)(w, r)
 		result := w.Result()
 
 		assert.Equal(t, http.StatusBadRequest, result.StatusCode)
@@ -396,10 +461,10 @@ func TestHandleLogin(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		authenticator := mock.NewAuthenticator(ctrl)
 		authenticator.EXPECT().
-			AuthenticateUser(r.Context(), cred).
+			SignIn(r.Context(), cred).
 			Return(idp.Session{}, idp.ErrPasswordInvalid)
 
-		idp.HandleLogin(idpName, authenticator)(w, r)
+		idp.HandleSignIn(idpName, authenticator)(w, r)
 		result := w.Result()
 
 		assert.Equal(t, http.StatusBadRequest, result.StatusCode)
@@ -422,10 +487,10 @@ func TestHandleLogin(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		authenticator := mock.NewAuthenticator(ctrl)
 		authenticator.EXPECT().
-			AuthenticateUser(r.Context(), cred).
+			SignIn(r.Context(), cred).
 			Return(idp.Session{}, idp.ErrEmailOrPasswordMismatch)
 
-		idp.HandleLogin(idpName, authenticator)(w, r)
+		idp.HandleSignIn(idpName, authenticator)(w, r)
 		result := w.Result()
 
 		assert.Equal(t, http.StatusUnauthorized, result.StatusCode)
@@ -452,10 +517,10 @@ func TestHandleLogin(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		authenticator := mock.NewAuthenticator(ctrl)
 		authenticator.EXPECT().
-			AuthenticateUser(r.Context(), cred).
+			SignIn(r.Context(), cred).
 			Return(session, nil)
 
-		idp.HandleLogin(idpName, authenticator)(w, r)
+		idp.HandleSignIn(idpName, authenticator)(w, r)
 		assert.Contains(t, w.Header().Get("Set-Cookie"), idpName+"_oauth_session=xyz")
 	})
 }
@@ -699,7 +764,7 @@ func TestHandleAuth(t *testing.T) {
 		assert.Equal(t, http.StatusFound, result.StatusCode)
 	})
 
-	t.Run("Given request is valid and user session is not found, redirect to login page with same request params", func(t *testing.T) {
+	t.Run("Given request is valid and user session is not found, redirect to sign-in page with same request params", func(t *testing.T) {
 		sessionID := "1234"
 
 		form := idp.AuthorizationForm{
@@ -738,7 +803,7 @@ func TestHandleAuth(t *testing.T) {
 		result := w.Result()
 
 		loc := result.Header.Get("location")
-		wantLoc := fmt.Sprintf("%s?%s", "/login", formValues.Encode())
+		wantLoc := fmt.Sprintf("%s?%s", "/sign-in", formValues.Encode())
 		assert.Equal(t, loc, wantLoc)
 		assert.Equal(t, http.StatusFound, result.StatusCode)
 	})
@@ -780,7 +845,7 @@ func TestHandleAuth(t *testing.T) {
 		result := w.Result()
 
 		loc := result.Header.Get("location")
-		wantLoc := fmt.Sprintf("%s?%s", "/login", formValues.Encode())
+		wantLoc := fmt.Sprintf("%s?%s", "/sign-in", formValues.Encode())
 		assert.Equal(t, loc, wantLoc)
 		assert.Equal(t, http.StatusFound, result.StatusCode)
 	})
