@@ -67,12 +67,12 @@ func (s *loginService) AuthenticateUser(ctx context.Context, cred Credential) (S
 	}
 	user, err := s.userRepo.GetUserByEmail(ctx, cred.Email)
 	switch {
-	case errors.Is(err, nil):
-		return s.authenticateExistingUser(ctx, cred, user)
 	case errors.Is(err, ErrUserNotFound):
 		return s.authenticateNewUser(ctx, cred)
-	default:
+	case !errors.Is(err, nil):
 		return Session{}, err
+	default:
+		return s.authenticateExistingUser(ctx, cred, user)
 	}
 }
 
