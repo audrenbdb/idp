@@ -1,0 +1,160 @@
+{{template "main" .}}
+{{define "content"}}
+<style>
+    #client-id-code, #client-secret-code {
+        text-overflow: ellipsis;
+        overflow: hidden;
+        max-width: 200px;
+    }
+    .copyable {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 30px;
+        cursor: pointer;
+        border: 1px solid rgba(0, 0, 0, .1);
+        padding: 15px;
+    }
+    .code-label {
+        color: grey;
+        font-size: 12px;
+    }
+    .code {
+        margin-right: 20px;
+    }
+    .copy {
+        background: rgba(124, 58, 237, 1);
+        color: #fff;
+        padding: 10px 20px;
+        border-radius: 4px;
+        text-transform: uppercase;
+    }
+    #snackbar {
+        visibility: hidden;
+        min-width: 250px;
+        margin-left: -125px;
+        background-color: #333;
+        color: #fff;
+        text-align: center;
+        border-radius: 2px;
+        padding: 16px;
+        position: fixed;
+        z-index: 1;
+        left: 50%;
+        bottom: 30px;
+    }
+
+    #snackbar.show {
+        visibility: visible;
+        -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s;
+        animation: fadein 0.5s, fadeout 0.5s 2.5s;
+    }
+
+    @-webkit-keyframes fadein {
+        from {bottom: 0; opacity: 0;}
+        to {bottom: 30px; opacity: 1;}
+    }
+
+    @keyframes fadein {
+        from {bottom: 0; opacity: 0;}
+        to {bottom: 30px; opacity: 1;}
+    }
+
+    @-webkit-keyframes fadeout {
+        from {bottom: 30px; opacity: 1;}
+        to {bottom: 0; opacity: 0;}
+    }
+
+    @keyframes fadeout {
+        from {bottom: 30px; opacity: 1;}
+        to {bottom: 0; opacity: 0;}
+    }
+</style>
+<form id="client-form" class="login-form" name="login-form">
+    <h3>Register new application</h3>
+    <input id="name" name="name" type="text" placeholder="Your application name" required>
+    <input id="uris" name="uris" type="text" placeholder="Comma separated redirect uris" required>
+    <button type="submit">Sign</button>
+</form>
+<div id="client" style="display:none;">
+    <h3>OAuth2 client credentials</h3>
+    <h4>Store them securely</h4>
+    <div id="client-secret" class="copyable">
+        <div class="code">
+            <div class="code-label">Client secret</div>
+            <div id="client-secret-code"></div>
+        </div>
+        <div class="copy">Copy</div>
+    </div>
+    <div id="client-id" class="copyable">
+        <div class="code">
+            <div class="code-label">Client id</div>
+            <div id="client-id-code"></div>
+        </div>
+        <div class="copy">Copy</div>
+    </div>
+</div>
+<div id="error"></div>
+<div id="snackbar"></div>
+<script>
+    const err = document.getElementById("error")
+    const form = document.getElementById("client-form")
+    const snackbar = document.getElementById("snackbar")
+
+    const client = document.getElementById("client")
+    const clientID = document.getElementById("client-id")
+    const clientSecret = document.getElementById("client-secret")
+    const clientIDCode = document.getElementById("client-id-code")
+    const clientSecretCode = document.getElementById("client-secret-code")
+
+    clientID.onclick = () => copyClientID?.call()
+    clientSecret.onclick = () => copyClientSecret?.call()
+
+    let copyClientID
+    let copyClientSecret
+
+    const setCopyClientID = clientID => {
+        copyClientID = () => copy(clientID, 'Client id copied to clipboard')
+    }
+
+    const setCopyClientSecret = clientSecret => {
+        copyClientSecret = () => copy(clientSecret, 'Client secret copied to clipboard')
+    }
+
+    const copy = async (textToCopy, textToDisplay) => {
+        await navigator.clipboard.writeText(textToCopy)
+        snackbar.className = "show"
+        snackbar.innerHTML = textToDisplay
+        setTimeout(() => snackbar.className = snackbar.className.replace("show", ""), 2000)
+    }
+
+    form.onsubmit = async (e) => {
+        e.preventDefault()
+        const formData = new FormData(form);
+        const resp = await fetch('/api/clients', {
+            method: 'POST',
+            body: new URLSearchParams({
+                "name": formData.get("name"),
+                "redirect_uris": formData.get("uris"),
+            }),
+        })
+
+        if (!resp.ok) {
+            return displayError(await resp.text())
+        }
+
+        form.style.display = "none";
+
+        const keys = await resp.json()
+        client.style.display = "block"
+        clientIDCode.innerHTML = keys.id
+        setCopyClientID(keys.id)
+        clientSecretCode.innerHTML = keys.secret
+        setCopyClientSecret(keys.secret)
+    }
+
+    const displayError = msg => {
+        err.innerHTML = msg
+    }
+</script>
+{{end}}

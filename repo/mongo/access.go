@@ -1,0 +1,48 @@
+package mongo
+
+import (
+	"context"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"idp"
+)
+
+type accessRepository struct {
+	accesses *mongo.Collection
+}
+
+func NewAccessRepository(db *mongo.Database) *accessRepository {
+	return &accessRepository{
+		accesses: db.Collection("accesses"),
+	}
+}
+
+func (r *accessRepository) SaveAccess(ctx context.Context, access idp.Access) (idp.Access, error) {
+	_, err := r.accesses.InsertOne(ctx, access)
+	return access, err
+}
+
+func (r *accessRepository) GetAccessByID(ctx context.Context, id string) (access idp.Access, err error) {
+	cursor, err := r.accesses.Aggregate(ctx, mongo.Pipeline{
+		bson.D{{Key: "$match", Value: bson.M{
+			"id": id,
+		}}},
+		bson.D{{Key: "$lookup", Value: bson.M{
+			"from":         "users",
+			"localField":   "userUID",
+			"foreignField": "uid",
+			"as":           "user",
+		}}},
+		bson.D{{Key: "$unwind", Value: bson.M{
+			"path": "$user",
+		}}},
+	})
+	if err != nil {
+		return access, err
+	}
+	defer cursor.Close(ctx)
+	if !cursor.Next(ctx) {
+		return access, idp.ErrAccessNotFound
+	}
+	return access, cursor.Decode(&access)
+}

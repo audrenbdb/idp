@@ -1,0 +1,80 @@
+{{define "main"}}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DIATEAM Authentication</title>
+</head>
+<body>
+<style>
+    html, body {
+        padding: 0;
+        margin: 0;
+        font-family:    -apple-system,
+                        BlinkMacSystemFont,
+                        Segoe UI,
+                        Roboto,
+                        Oxygen,
+                        Ubuntu,
+                        Cantarell,
+                        Fira Sans,
+                        Droid Sans,
+                        Helvetica Neue,
+                        sans-serif;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    .center-wrapper {
+        display: flex;
+        min-height: 100vh;
+    }
+
+    .center-wrapper .container {
+        margin: auto;
+        max-width: 500px;
+        min-height: 300px;
+    }
+
+    h2, form h3, #error {
+        text-align: center;
+    }
+
+    input {
+        padding: .75rem;
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+        margin-bottom: 1.25rem;
+        border: 2px solid rgba(0, 0, 0, .1);
+    }
+
+    button {
+        text-transform: uppercase;
+        background-color: rgba(124, 58, 237, 1);
+        font-weight: 700;
+        padding: .75rem;
+        color: #fff;
+        cursor: pointer;
+        border: none;
+    }
+
+    button, input {
+        width: 100%;
+        border-radius: .25rem;
+    }
+
+    #error {
+        color: red;
+    }
+
+</style>
+</body>
+    <div class="center-wrapper">
+        <div class="container">
+            <h2>DIATEAM</h2>
+            {{template "content" .}}
+        </div>
+    </div>
+</html>
+{{end}}
