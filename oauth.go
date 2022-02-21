@@ -20,6 +20,8 @@ type AuthorizationRepository interface {
 type AccessRepository interface {
 	SaveAccess(ctx context.Context, access Access) (Access, error)
 	GetAccessByID(ctx context.Context, id string) (Access, error)
+	GetAccessByRefreshTokenID(ctx context.Context, refreshID string) (Access, error)
+	DeleteAccess(ctx context.Context, id string) error
 }
 
 type oauthService struct {
@@ -90,39 +92,74 @@ func (s *oauthService) isAccessExpired(access Access) bool {
 	return access.Expiration.Before(s.now())
 }
 
+func (s *oauthService) isRefreshTokenExpired(refreshToken RefreshToken) bool {
+	return refreshToken.Expiration.Before(s.now())
+}
+
+func (s *oauthService) RefreshToken(ctx context.Context, form RefreshTokenForm) (Token, error) {
+	access, err := s.accessRepo.GetAccessByRefreshTokenID(ctx, form.GetRefreshTokenID())
+	if err != nil {
+		return Token{}, ErrInvalidRefreshToken
+	}
+	if s.isRefreshTokenExpired(access.RefreshToken) {
+		return Token{}, ErrInvalidRefreshToken
+	}
+	err = s.accessRepo.DeleteAccess(ctx, access.ID)
+	if err != nil {
+		return Token{}, err
+	}
+	return s.newUserToken(ctx, access.User)
+}
+
 func (s *oauthService) NewToken(ctx context.Context, form AccessTokenForm) (Token, error) {
 	authorization, err := s.getAuthorization(ctx, form)
 	if err != nil {
 		return Token{}, err
 	}
-	err = s.authorizationRepo.DeleteAuthorization(ctx, form.Code)
+	err = s.authorizationRepo.DeleteAuthorization(ctx, form.GetCode())
 	if err != nil {
 		return Token{}, err
 	}
+	return s.newUserToken(ctx, authorization.User)
+}
+
+func (s *oauthService) newUserToken(ctx context.Context, user User) (Token, error) {
 	access, err := s.accessRepo.SaveAccess(ctx, Access{
-		ID:         s.newRandID(),
-		User:       authorization.User,
-		Expiration: s.now().Add(180 * time.Hour * 24),
+		ID: s.newRandID(),
+		RefreshToken: RefreshToken{
+			ID:         s.newRandID(),
+			Expiration: s.now().Add(24 * time.Hour * 360), // a year ~
+		},
+		User:       user,
+		Expiration: s.now().Add(time.Hour),
 	})
 	if err != nil {
 		return Token{}, err
 	}
-	return Token{Access: access.ID}, nil
+	return s.tokenFromAccess(access), nil
+}
+
+func (s *oauthService) tokenFromAccess(access Access) Token {
+	return Token{
+		Access:  access.ID,
+		Refresh: access.RefreshToken.ID,
+		Expires: int(access.Expiration.Sub(s.now()).Seconds()),
+	}
 }
 
 func (s *oauthService) getAuthorization(ctx context.Context, form AccessTokenForm) (Authorization, error) {
-	authorization, err := s.authorizationRepo.GetAuthorizationByCode(ctx, form.Code)
+	authorization, err := s.authorizationRepo.GetAuthorizationByCode(ctx, form.GetCode())
 	if err != nil {
 		return authorization, err
 	}
-	if authorization.RedirectURI != form.RedirectURI {
+	if authorization.RedirectURI != form.GetRedirectURI() {
 		return authorization, ErrMismatchingRedirectURI
 	}
-	authorization.Client, err = s.clientRepo.GetClientByID(ctx, form.ClientID)
+	authorization.Client, err = s.clientRepo.GetClientByID(ctx, form.GetClientID())
 	if err != nil {
 		return authorization, err
 	}
-	if authorization.Client.ID != form.ClientID {
+	if authorization.Client.ID != form.GetClientID() {
 		return authorization, ErrClientUnauthorized
 	}
 	if authorization.Expiration.Before(s.now()) {

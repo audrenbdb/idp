@@ -156,8 +156,8 @@ func TestHandleGetUserIdentity(t *testing.T) {
 	})
 }
 
-func TestHandleGetAccessToken(t *testing.T) {
-	t.Run("Given request is missing grant_type=authorization_code should return bad request", func(t *testing.T) {
+func TestHandleGetToken_WithoutGrant(t *testing.T) {
+	t.Run("Given request is missing an accepted grant_type (authorizatioon_code or refresh_token) should return bad request", func(t *testing.T) {
 		formValues := url.Values{}
 		formValues.Set("code", "abc")
 		formValues.Set("redirect_uri", "http://re.di.rect")
@@ -167,14 +167,136 @@ func TestHandleGetAccessToken(t *testing.T) {
 		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		idp.HandleGetAccessToken(nil)(w, r)
+		idp.HandleGetToken(nil)(w, r)
 		result := w.Result()
 		body, err := io.ReadAll(result.Body)
 		assert.NoError(t, err)
 		assert.Contains(t, string(body), idp.ErrMissingGrantType.Error())
 	})
+}
 
-	t.Run("Given request is missing code should return bad request", func(t *testing.T) {
+func TestHandleGetToken_WithRefreshToken(t *testing.T) {
+	t.Run("Given request is missing client_id should return bad request", func(t *testing.T) {
+		formValues := url.Values{}
+		formValues.Set("grant_type", "refresh_token")
+		formValues.Set("client_id", "")
+		formValues.Set("client_secret", "xyz")
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		idp.HandleGetToken(nil)(w, r)
+		result := w.Result()
+		body, err := io.ReadAll(result.Body)
+		assert.NoError(t, err)
+		assert.Contains(t, string(body), idp.ErrMissingClientID.Error())
+	})
+
+	t.Run("Given request is missing client_secret should return bad request", func(t *testing.T) {
+		formValues := url.Values{}
+		formValues.Set("grant_type", "refresh_token")
+		formValues.Set("client_id", "abc")
+		formValues.Set("client_secret", "")
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		idp.HandleGetToken(nil)(w, r)
+		result := w.Result()
+		body, err := io.ReadAll(result.Body)
+		assert.NoError(t, err)
+		assert.Contains(t, string(body), idp.ErrMissingClientSecret.Error())
+		assert.Equal(t, http.StatusBadRequest, result.StatusCode)
+	})
+
+	t.Run("Given request is missing refresh_token should return bad request", func(t *testing.T) {
+		formValues := url.Values{}
+		formValues.Set("grant_type", "refresh_token")
+		formValues.Set("client_id", "abc")
+		formValues.Set("client_secret", "xyz")
+		formValues.Set("refresh_token", "")
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		idp.HandleGetToken(nil)(w, r)
+		result := w.Result()
+		body, err := io.ReadAll(result.Body)
+		assert.NoError(t, err)
+		assert.Contains(t, string(body), idp.ErrMissingRefreshToken.Error())
+		assert.Equal(t, http.StatusBadRequest, result.StatusCode)
+	})
+
+	t.Run("Given request is unauthorized to refresh token should return unauthorized", func(t *testing.T) {
+		form := idp.TokenForm{
+			Grant:        idp.Refresh,
+			ClientID:     "abc",
+			ClientSecret: "xyz",
+			RefreshToken: "qdpoziudoqizd",
+		}
+
+		formValues := url.Values{}
+		formValues.Set("grant_type", "refresh_token")
+		formValues.Set("client_id", form.ClientID)
+		formValues.Set("client_secret", form.ClientSecret)
+		formValues.Set("refresh_token", form.RefreshToken)
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		ctrl := gomock.NewController(t)
+		tokenGetter := mock.NewTokenGetter(ctrl)
+		tokenGetter.EXPECT().
+			RefreshToken(r.Context(), form).
+			Return(idp.Token{}, idp.ErrUnauthorized{Err: "nop"})
+
+		idp.HandleGetToken(tokenGetter)(w, r)
+		result := w.Result()
+		body, err := io.ReadAll(result.Body)
+		assert.NoError(t, err)
+		assert.Contains(t, string(body), idp.ErrUnauthorized{Err: "nop"}.Error())
+		assert.Equal(t, http.StatusUnauthorized, result.StatusCode)
+	})
+
+	t.Run("Given request is authorized, a new token is encoded to json body", func(t *testing.T) {
+		form := idp.TokenForm{
+			Grant:        idp.Refresh,
+			ClientID:     "abc",
+			ClientSecret: "xyz",
+			RefreshToken: "qdpoziudoqizd",
+		}
+
+		formValues := url.Values{}
+		formValues.Set("grant_type", "refresh_token")
+		formValues.Set("client_id", form.ClientID)
+		formValues.Set("client_secret", form.ClientSecret)
+		formValues.Set("refresh_token", form.RefreshToken)
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		ctrl := gomock.NewController(t)
+		tokenGetter := mock.NewTokenGetter(ctrl)
+		tokenGetter.EXPECT().
+			RefreshToken(r.Context(), form).
+			Return(idp.Token{Access: "123", Refresh: "456", Expires: 123}, nil)
+
+		idp.HandleGetToken(tokenGetter)(w, r)
+		result := w.Result()
+		body, err := io.ReadAll(result.Body)
+		assert.NoError(t, err)
+		assert.Contains(t, string(body), `{"access_token":"123","refresh_token":"456","expires":123}`)
+		assert.Equal(t, http.StatusOK, result.StatusCode)
+	})
+}
+
+func TestHandleGetToken_WithAuthCode(t *testing.T) {
+	t.Run("Given request is missing Code should return bad request", func(t *testing.T) {
 		formValues := url.Values{}
 		formValues.Set("grant_type", "authorization_code")
 		formValues.Set("redirect_uri", "http://re.di.rect")
@@ -184,14 +306,14 @@ func TestHandleGetAccessToken(t *testing.T) {
 		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		idp.HandleGetAccessToken(nil)(w, r)
+		idp.HandleGetToken(nil)(w, r)
 		result := w.Result()
 		body, err := io.ReadAll(result.Body)
 		assert.NoError(t, err)
 		assert.Contains(t, string(body), idp.ErrMissingAuthCode.Error())
 	})
 
-	t.Run("Given request is missing redirect uri should return bad request", func(t *testing.T) {
+	t.Run("Given request is missing redirect uri should return status unauthorized", func(t *testing.T) {
 		formValues := url.Values{}
 		formValues.Set("code", "abc")
 		formValues.Set("grant_type", "authorization_code")
@@ -201,7 +323,7 @@ func TestHandleGetAccessToken(t *testing.T) {
 		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		idp.HandleGetAccessToken(nil)(w, r)
+		idp.HandleGetToken(nil)(w, r)
 		result := w.Result()
 		body, err := io.ReadAll(result.Body)
 		assert.NoError(t, err)
@@ -218,7 +340,7 @@ func TestHandleGetAccessToken(t *testing.T) {
 		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(formValues.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		idp.HandleGetAccessToken(nil)(w, r)
+		idp.HandleGetToken(nil)(w, r)
 		result := w.Result()
 		body, err := io.ReadAll(result.Body)
 		assert.NoError(t, err)
@@ -226,16 +348,16 @@ func TestHandleGetAccessToken(t *testing.T) {
 	})
 
 	t.Run("Given request fails with mismatching URI should return error mismatching_uri", func(t *testing.T) {
-		form := idp.AccessTokenForm{
-			GrantType:   "authorization_code",
-			Code:        "abc",
-			RedirectURI: "http://re.di.rect",
+		form := idp.TokenForm{
+			Grant:       idp.Code,
 			ClientID:    "xyz",
+			RedirectURI: "http://re.di.rect",
+			Code:        "abc",
 		}
 
 		formValues := url.Values{}
 		formValues.Set("code", form.Code)
-		formValues.Set("grant_type", form.GrantType)
+		formValues.Set("grant_type", string(form.Grant))
 		formValues.Set("redirect_uri", form.RedirectURI)
 		formValues.Set("client_id", form.ClientID)
 
@@ -249,7 +371,7 @@ func TestHandleGetAccessToken(t *testing.T) {
 			NewToken(r.Context(), form).
 			Return(idp.Token{}, idp.ErrMismatchingRedirectURI)
 
-		idp.HandleGetAccessToken(tokenGetter)(w, r)
+		idp.HandleGetToken(tokenGetter)(w, r)
 		result := w.Result()
 		body, err := io.ReadAll(result.Body)
 		assert.NoError(t, err)
@@ -257,8 +379,8 @@ func TestHandleGetAccessToken(t *testing.T) {
 	})
 
 	t.Run("Given request fails internally should return internal server error", func(t *testing.T) {
-		form := idp.AccessTokenForm{
-			GrantType:   "authorization_code",
+		form := idp.TokenForm{
+			Grant:       idp.Code,
 			Code:        "abc",
 			RedirectURI: "http://re.di.rect",
 			ClientID:    "xyz",
@@ -266,7 +388,7 @@ func TestHandleGetAccessToken(t *testing.T) {
 
 		formValues := url.Values{}
 		formValues.Set("code", form.Code)
-		formValues.Set("grant_type", form.GrantType)
+		formValues.Set("grant_type", string(form.Grant))
 		formValues.Set("redirect_uri", form.RedirectURI)
 		formValues.Set("client_id", form.ClientID)
 
@@ -280,7 +402,7 @@ func TestHandleGetAccessToken(t *testing.T) {
 			NewToken(r.Context(), form).
 			Return(idp.Token{}, errors.New("internal server error"))
 
-		idp.HandleGetAccessToken(tokenGetter)(w, r)
+		idp.HandleGetToken(tokenGetter)(w, r)
 		result := w.Result()
 		body, err := io.ReadAll(result.Body)
 		assert.NoError(t, err)
@@ -288,8 +410,8 @@ func TestHandleGetAccessToken(t *testing.T) {
 	})
 
 	t.Run("Given request should return user access token freely", func(t *testing.T) {
-		form := idp.AccessTokenForm{
-			GrantType:   "authorization_code",
+		form := idp.TokenForm{
+			Grant:       idp.Code,
 			Code:        "abc",
 			RedirectURI: "http://re.di.rect",
 			ClientID:    "xyz",
@@ -297,7 +419,7 @@ func TestHandleGetAccessToken(t *testing.T) {
 
 		formValues := url.Values{}
 		formValues.Set("code", form.Code)
-		formValues.Set("grant_type", form.GrantType)
+		formValues.Set("grant_type", string(form.Grant))
 		formValues.Set("redirect_uri", form.RedirectURI)
 		formValues.Set("client_id", form.ClientID)
 
@@ -314,7 +436,7 @@ func TestHandleGetAccessToken(t *testing.T) {
 			NewToken(r.Context(), form).
 			Return(token, nil)
 
-		idp.HandleGetAccessToken(tokenGetter)(w, r)
+		idp.HandleGetToken(tokenGetter)(w, r)
 		result := w.Result()
 		body, err := io.ReadAll(result.Body)
 		assert.NoError(t, err)
@@ -567,7 +689,7 @@ func TestHandleAuth(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, result.StatusCode)
 	})
 
-	t.Run("Given request does not have response_type set to code in its form body, "+
+	t.Run("Given request does not have response_type set to Code in its form body, "+
 		"authorization server SHOULD inform the resource owner and NOT redirect", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		formValues := url.Values{}
@@ -584,7 +706,7 @@ func TestHandleAuth(t *testing.T) {
 		b, err := io.ReadAll(result.Body)
 		assert.NoError(t, err)
 
-		assert.Contains(t, string(b), "400: request should include response_type=code")
+		assert.Contains(t, string(b), "400: request should include response_type=Code")
 		assert.Equal(t, http.StatusBadRequest, result.StatusCode)
 	})
 
@@ -719,7 +841,7 @@ func TestHandleAuth(t *testing.T) {
 		}
 	})
 
-	t.Run("Given request is valid and user is already connected, generate an authentication code from its session", func(t *testing.T) {
+	t.Run("Given request is valid and user is already connected, generate an authentication Code from its session", func(t *testing.T) {
 		sessionID := "1234"
 		wantAuthCode := "1234"
 
@@ -758,7 +880,7 @@ func TestHandleAuth(t *testing.T) {
 		result := w.Result()
 
 		loc := result.Header.Get("location")
-		wantLoc := fmt.Sprintf("%s?code=%s&state=%s",
+		wantLoc := fmt.Sprintf("%s?Code=%s&state=%s",
 			form.RedirectURI, wantAuthCode, form.State)
 		assert.Equal(t, loc, wantLoc)
 		assert.Equal(t, http.StatusFound, result.StatusCode)

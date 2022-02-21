@@ -27,3 +27,17 @@ func (r *accessRepository) GetAccessByID(ctx context.Context, id string) (idp.Ac
 	}
 	return access, nil
 }
+
+func (r *accessRepository) GetAccessByRefreshTokenID(ctx context.Context, refreshID string) (idp.Access, error) {
+	for _, access := range r.accesses {
+		if access.RefreshToken.ID == refreshID {
+			return access, nil
+		}
+	}
+	return idp.Access{}, idp.ErrAccessNotFound
+}
+
+func (r *accessRepository) DeleteAccess(ctx context.Context, id string) error {
+	delete(r.accesses, id)
+	return nil
+}

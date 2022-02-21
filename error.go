@@ -22,12 +22,13 @@ var (
 	ErrSessionExpired          = ErrUnauthorized{"session expired"}
 	ErrAuthorizationExpired    = ErrUnauthorized{"authorization expired"}
 	ErrAccessExpired           = ErrUnauthorized{"access expired"}
-	ErrClientUnauthorized      = ErrUnauthorized{"client is not authorized to request an authorization code"}
+	ErrClientUnauthorized      = ErrUnauthorized{"client is not authorized to request an authorization Code"}
 	ErrEmailOrPasswordMismatch = ErrUnauthorized{"email or password mismatch"}
 	ErrInvalidClientID         = ErrUnauthorized{"client_id provided is invalid"}
 	ErrMismatchingRedirectURI  = ErrUnauthorized{"mismatching redirect_uri"}
 	ErrMissingBearerToken      = ErrUnauthorized{"missing bearer token"}
 	ErrUserAlreadyExists       = ErrUnauthorized{"user already exists"}
+	ErrInvalidRefreshToken     = ErrUnauthorized{"refresh token is expired or invalid"}
 
 	ErrMissingAppName         = ErrBadRequest{"request is missing app name"}
 	ErrMissingAppRedirectURIs = ErrBadRequest{"request is missing redirect_uris"}
@@ -37,12 +38,14 @@ var (
 	ErrUserFirstNameInvalid = ErrBadRequest{"first name is invalid"}
 	ErrUserLastNameInvalid  = ErrBadRequest{"last name is invalid"}
 
-	ErrMissingAuthCode        = ErrBadRequest{"request is missing code parameter"}
+	ErrMissingAuthCode        = ErrBadRequest{"request is missing Code parameter"}
 	ErrMissingClientID        = ErrBadRequest{"request is missing client_id"}
-	ErrMissingGrantType       = ErrBadRequest{"request is missing grant_type=authorization_code"}
+	ErrMissingClientSecret    = ErrBadRequest{"request is missing client secret"}
+	ErrMissingGrantType       = ErrBadRequest{"request is missing accepted grant_type"}
 	ErrMissingRedirectURI     = ErrBadRequest{"request is missing redirect_uri"}
+	ErrMissingRefreshToken    = ErrBadRequest{"request is missing refresh_token"}
 	ErrPasswordInvalid        = ErrBadRequest{"password is invalid"}
 	ErrPasswordMissing        = ErrBadRequest{"password is missing"}
-	ErrResponseTypeIsNotCode  = ErrBadRequest{"request should include response_type=code"}
+	ErrResponseTypeIsNotCode  = ErrBadRequest{"request should include response_type=Code"}
 	ErrTemporarilyUnavailable = ErrBadRequest{"authorization server is currently unable to handle the request due to a temporary overloading or maintenance of the server"}
 )

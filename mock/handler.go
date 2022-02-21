@@ -155,6 +155,21 @@ func (mr *TokenGetterMockRecorder) NewToken(ctx, form interface{}) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewToken", reflect.TypeOf((*TokenGetter)(nil).NewToken), ctx, form)
 }
 
+// RefreshToken mocks base method.
+func (m *TokenGetter) RefreshToken(ctx context.Context, form idp.RefreshTokenForm) (idp.Token, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Refresh", ctx, form)
+	ret0, _ := ret[0].(idp.Token)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RefreshToken indicates an expected call of RefreshToken.
+func (mr *TokenGetterMockRecorder) RefreshToken(ctx, form interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Refresh", reflect.TypeOf((*TokenGetter)(nil).RefreshToken), ctx, form)
+}
+
 // UserAccesser is a mock of UserAccesser interface.
 type UserAccesser struct {
 	ctrl     *gomock.Controller

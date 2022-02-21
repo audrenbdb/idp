@@ -57,7 +57,7 @@ func StartServer(idpName, addr string, oauth OauthService, login LoginService) e
 	mux.HandleFunc("/api/sign-in", HandleSignIn(idpName, login))
 	mux.HandleFunc("/api/sign-up", HandleSignUp(idpName, login))
 	mux.HandleFunc("/api/clients", HandlePostClient(oauth))
-	mux.HandleFunc("/token", cors(HandleGetAccessToken(oauth)))
+	mux.HandleFunc("/token", cors(HandleGetToken(oauth)))
 	mux.HandleFunc("/user", cors(HandleGetUser(oauth)))
 	mux.HandleFunc("/auth", HandleAuth(idpName, oauth))
 	mux.HandleFunc("/", serveTemplate("404.html"))

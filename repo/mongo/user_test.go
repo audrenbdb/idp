@@ -3,6 +3,7 @@ package mongo_test
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
+	"go.mongodb.org/mongo-driver/bson"
 	"idp"
 	"idp/rand"
 	"idp/repo/mongo"
@@ -24,6 +25,7 @@ func TestUserRepo(t *testing.T) {
 
 	ctx := context.Background()
 	db := newDB()
+	db.Collection("users").DeleteMany(ctx, bson.M{"email": jon.Email})
 
 	repo := mongo.NewUserRepository(db)
 

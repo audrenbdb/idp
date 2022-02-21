@@ -114,6 +114,95 @@ func TestAccessUser(t *testing.T) {
 	})
 }
 
+func TestRefreshToken(t *testing.T) {
+	ctx := context.Background()
+
+	bob := idp.User{
+		UID:       "xyz",
+		Email:     "bobsap@ufc.org",
+		FirstName: "Bob",
+		LastName:  "Sap",
+	}
+
+	t.Run("A refresh token that does not exist should not be authorized to grant a token", func(t *testing.T) {
+		form := idp.TokenForm{RefreshToken: "unknown"}
+
+		accessRepo := inmem.NewAccessRepository()
+		service := idp.NewOAuthService(idp.OAuthServiceOpt{
+			AccessRepo: accessRepo,
+		})
+		_, err := service.RefreshToken(ctx, form)
+		assert.Equal(t, idp.ErrInvalidRefreshToken, err)
+	})
+
+	t.Run("A refresh token that is expired should not be authorized to grant a token", func(t *testing.T) {
+		form := idp.TokenForm{RefreshToken: "xyz"}
+
+		access := idp.Access{
+			RefreshToken: idp.RefreshToken{
+				ID:         form.RefreshToken,
+				Expiration: fakeNow().Add(-10 * time.Minute),
+			},
+		}
+
+		accessRepo := inmem.NewAccessRepository()
+		accessRepo.SaveAccess(ctx, access)
+		service := idp.NewOAuthService(idp.OAuthServiceOpt{
+			AccessRepo: accessRepo,
+		})
+		_, err := service.RefreshToken(ctx, form)
+		assert.Equal(t, idp.ErrInvalidRefreshToken, err)
+	})
+
+	t.Run("Valid request should return a new token and delete previous access", func(t *testing.T) {
+		form := idp.TokenForm{RefreshToken: "xyz"}
+		bobAccess := idp.Access{
+			ID:   "abc",
+			User: bob,
+			RefreshToken: idp.RefreshToken{
+				ID:         form.RefreshToken,
+				Expiration: fakeNow().Add(10 * time.Minute),
+			},
+		}
+
+		fakeRandomID := "qocziduq,;nc"
+
+		accessRepo := inmem.NewAccessRepository()
+		accessRepo.SaveAccess(ctx, bobAccess)
+		service := idp.NewOAuthService(idp.OAuthServiceOpt{
+			AccessRepo: accessRepo,
+			NewRandID:  newDeterminedIDGenerator(fakeRandomID),
+			Now:        fakeNow,
+		})
+
+		wantAccess := idp.Access{
+			ID:   fakeRandomID,
+			User: bob,
+			RefreshToken: idp.RefreshToken{
+				ID:         fakeRandomID,
+				Expiration: fakeNow().Add(24 * time.Hour * 360),
+			},
+			Expiration: fakeNow().Add(time.Hour),
+		}
+
+		wantToken := idp.Token{
+			Access:  wantAccess.ID,
+			Refresh: wantAccess.RefreshToken.ID,
+			Expires: int(wantAccess.Expiration.Sub(fakeNow()).Seconds()),
+		}
+
+		token, err := service.RefreshToken(ctx, form)
+		assert.NoError(t, err)
+		assert.Equal(t, wantToken, token)
+
+		_, err = accessRepo.GetAccessByID(ctx, bobAccess.ID)
+		assert.Equal(t, idp.ErrAccessNotFound, err)
+
+		access, err := accessRepo.GetAccessByID(ctx, wantAccess.ID)
+		assert.Equal(t, wantAccess, access)
+	})
+}
+
 func TestNewToken(t *testing.T) {
 	ctx := context.Background()
 
@@ -130,8 +219,8 @@ func TestNewToken(t *testing.T) {
 	clientRepo := inmem.NewClientRepository()
 	clientRepo.SaveClient(ctx, avengers)
 
-	t.Run("A token cannot be generated if URI provided mismatch the one used for auth code", func(t *testing.T) {
-		jonAccessTokenForm := idp.AccessTokenForm{
+	t.Run("A token cannot be generated if URI provided mismatch the one used for auth Code", func(t *testing.T) {
+		jonAccessTokenForm := idp.TokenForm{
 			Code:        "xwy",
 			RedirectURI: "http://re.di.rect",
 			ClientID:    avengers.ID,
@@ -156,7 +245,7 @@ func TestNewToken(t *testing.T) {
 	})
 
 	t.Run("A token cannot be generated if no authorization is found with given form", func(t *testing.T) {
-		jonAccessTokenForm := idp.AccessTokenForm{
+		jonAccessTokenForm := idp.TokenForm{
 			Code:        "xwy",
 			RedirectURI: "http://re.di.rect",
 			ClientID:    avengers.ID,
@@ -173,7 +262,7 @@ func TestNewToken(t *testing.T) {
 	})
 
 	t.Run("A token cannot be generated if client is not found", func(t *testing.T) {
-		jonAccessTokenForm := idp.AccessTokenForm{
+		jonAccessTokenForm := idp.TokenForm{
 			Code:        "xwy",
 			RedirectURI: avengers.AuthorizedRedirects[0],
 			ClientID:    "malicious_client",
@@ -198,7 +287,7 @@ func TestNewToken(t *testing.T) {
 	})
 
 	t.Run("A token cannot be generated if authorization expired", func(t *testing.T) {
-		jonAccessTokenForm := idp.AccessTokenForm{
+		jonAccessTokenForm := idp.TokenForm{
 			Code:        "xwy",
 			RedirectURI: avengers.AuthorizedRedirects[0],
 			ClientID:    avengers.ID,
@@ -223,7 +312,7 @@ func TestNewToken(t *testing.T) {
 	})
 
 	t.Run("Created token should also delete authorizations to avoid further use", func(t *testing.T) {
-		jonAccessTokenForm := idp.AccessTokenForm{
+		jonAccessTokenForm := idp.TokenForm{
 			Code:        "xwy",
 			RedirectURI: avengers.AuthorizedRedirects[0],
 			ClientID:    avengers.ID,
@@ -239,25 +328,33 @@ func TestNewToken(t *testing.T) {
 		})
 		accessRepo := inmem.NewAccessRepository()
 
-		accessID := "qouziydqbn"
+		randomID := "qouziydqbn"
 		service := idp.NewOAuthService(idp.OAuthServiceOpt{
 			AuthorizationRepo: authorizationRepo,
 			ClientRepo:        clientRepo,
 			AccessRepo:        accessRepo,
 			Now:               fakeNow,
-			NewRandID:         newDeterminedIDGenerator(accessID),
+			NewRandID:         newDeterminedIDGenerator(randomID),
 		})
 
 		token, err := service.NewToken(ctx, jonAccessTokenForm)
 		assert.NoError(t, err)
-		assert.Equal(t, idp.Token{Access: accessID}, token)
+		assert.Equal(t, idp.Token{
+			Access:  randomID,
+			Refresh: randomID,
+			Expires: int(fakeNow().Add(time.Hour).Sub(fakeNow()).Seconds()),
+		}, token)
 
 		access, err := accessRepo.GetAccessByID(ctx, token.Access)
 		assert.NoError(t, err)
 		assert.Equal(t, idp.Access{
-			ID:         accessID,
+			ID: randomID,
+			RefreshToken: idp.RefreshToken{
+				ID:         randomID,
+				Expiration: fakeNow().Add(24 * time.Hour * 360),
+			},
 			User:       jon,
-			Expiration: fakeNow().Add(180 * time.Hour * 24),
+			Expiration: fakeNow().Add(time.Hour),
 		}, access)
 
 		_, err = authorizationRepo.GetAuthorizationByCode(ctx, jonAccessTokenForm.Code)
@@ -284,7 +381,7 @@ func TestNewAuthCode(t *testing.T) {
 	clientRepo := inmem.NewClientRepository()
 	clientRepo.SaveClient(ctx, avengers)
 
-	t.Run("An authorization code cannot be delivered when a session is expired", func(t *testing.T) {
+	t.Run("An authorization Code cannot be delivered when a session is expired", func(t *testing.T) {
 		jonSession := idp.Session{
 			ID:         "xyz",
 			User:       jon,
@@ -302,7 +399,7 @@ func TestNewAuthCode(t *testing.T) {
 		_, err := service.NewAuthCode(ctx, jonSession.ID, jonAuthForm)
 		assert.Equal(t, idp.ErrSessionExpired, err)
 	})
-	t.Run("An authorization code cannot be delivered when a session is not foudn", func(t *testing.T) {
+	t.Run("An authorization Code cannot be delivered when a session is not foudn", func(t *testing.T) {
 		jonSession := idp.Session{
 			ID:   "xyz",
 			User: jon,
@@ -317,7 +414,7 @@ func TestNewAuthCode(t *testing.T) {
 		_, err := service.NewAuthCode(ctx, jonSession.ID, jonAuthForm)
 		assert.Equal(t, idp.ErrSessionNotFound, err)
 	})
-	t.Run("An new code should be generated, and its code request saved", func(t *testing.T) {
+	t.Run("An new Code should be generated, and its Code request saved", func(t *testing.T) {
 		wantCode := "paoiuzdaou"
 		jonSession := idp.Session{
 			ID:         "abc",

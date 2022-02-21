@@ -6,31 +6,22 @@ import (
 	"time"
 )
 
-type AccessTokenForm struct {
-	// REQUIRED.
-	//
-	// GrantType value mus be set to "authorization_code"
-	GrantType string
-	// REQUIRED.
-	//
-	// The authorization code received from the
-	// authorization server.
-	Code string
-	// REQUIRED.
-	//
-	// Redirect URI similar to one passed in authorization
-	// code request.
-	RedirectURI string
-	// REQUIRED.
-	//
-	// Client identifier
-	ClientID string
+type AccessTokenForm interface {
+	GetCode() string
+	GetRedirectURI() string
+	GetClientID() string
+}
+
+type RefreshTokenForm interface {
+	GetClientID() string
+	GetClientSecret() string
+	GetRefreshTokenID() string
 }
 
 type AuthorizationForm struct {
 	// REQUIRED.
 	//
-	// Value MUST be set to "code".
+	// Value MUST be set to "Code".
 	ResponseType string
 	// OPTIONAL.
 	//
@@ -89,7 +80,10 @@ type Session struct {
 }
 
 type Token struct {
-	Access string `json:"access_token,omitempty"`
+	Access  string `json:"access_token,omitempty"`
+	Refresh string `json:"refresh_token,omitempty"`
+	// Expires in second before the ACCESS token is invalid
+	Expires int `json:"expires"`
 }
 
 type User struct {
@@ -133,9 +127,15 @@ type Authorization struct {
 }
 
 type Access struct {
-	ID         string
-	User       User
-	Expiration time.Time
+	ID           string
+	RefreshToken RefreshToken
+	User         User
+	Expiration   time.Time
+}
+
+type RefreshToken struct {
+	ID         string    `bson:"id"`
+	Expiration time.Time `bson:"expiration"`
 }
 
 func (s Session) MarshalBSON() ([]byte, error) {
@@ -153,13 +153,15 @@ func (s Session) MarshalBSON() ([]byte, error) {
 
 func (a Access) MarshalBSON() ([]byte, error) {
 	access := struct {
-		ID         string    `bson:"id"`
-		UserUID    string    `bson:"userUID"`
-		Expiration time.Time `bson:"expiration"`
+		ID           string       `bson:"id"`
+		UserUID      string       `bson:"userUID"`
+		RefreshToken RefreshToken `bson:"refreshToken"`
+		Expiration   time.Time    `bson:"expiration"`
 	}{
-		ID:         a.ID,
-		UserUID:    a.User.UID,
-		Expiration: a.Expiration,
+		ID:           a.ID,
+		UserUID:      a.User.UID,
+		RefreshToken: a.RefreshToken,
+		Expiration:   a.Expiration,
 	}
 	return bson.Marshal(access)
 }

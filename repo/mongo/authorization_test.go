@@ -7,6 +7,7 @@ import (
 	"idp/rand"
 	"idp/repo/mongo"
 	"testing"
+	"time"
 )
 
 func TestAuthorizationRepo(t *testing.T) {
@@ -16,18 +17,21 @@ func TestAuthorizationRepo(t *testing.T) {
 
 	generateID := rand.IDGenerator(40)
 
-	bob := idp.User{UID: generateID(), Email: "bobsap@ufc.org"}
+	bob := idp.User{UID: generateID(), Email: "bobsapper@ufc.org"}
 	avengers := idp.Client{
 		ID:                  generateID(),
 		Secret:              generateID(),
 		Name:                "Avengers Org.",
 		AuthorizedRedirects: []string{"http://marvel/redirect"},
+		CreatedAt:           time.Now().UTC().Truncate(time.Millisecond),
 	}
 
 	ctx := context.Background()
 	db := newDB()
-	db.Collection("users").InsertOne(ctx, bob)
-	db.Collection("clients").InsertOne(ctx, avengers)
+	users := db.Collection("users")
+	clients := db.Collection("clients")
+	users.InsertOne(ctx, bob)
+	clients.InsertOne(ctx, avengers)
 
 	authRepo := mongo.NewAuthorizationRepository(db)
 
@@ -36,6 +40,7 @@ func TestAuthorizationRepo(t *testing.T) {
 		User:        bob,
 		RedirectURI: "http://re.di.rect",
 		Client:      avengers,
+		Expiration:  time.Now().UTC().Truncate(time.Millisecond),
 	})
 	assert.NoError(t, err)
 

@@ -31,6 +31,7 @@ type Authenticator interface {
 
 type TokenGetter interface {
 	NewToken(ctx context.Context, form AccessTokenForm) (Token, error)
+	RefreshToken(ctx context.Context, form RefreshTokenForm) (Token, error)
 }
 
 type UserAccesser interface {
@@ -106,52 +107,117 @@ func HandleGetUser(userAccesser UserAccesser) http.HandlerFunc {
 	}
 }
 
-func HandleGetAccessToken(tokenGetter TokenGetter) http.HandlerFunc {
+func HandleGetToken(tokenGetter TokenGetter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		form, err := parseAccessTokenForm(r)
+		form, err := parseTokenForm(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		token, err := tokenGetter.NewToken(r.Context(), form)
+		var token Token
+		switch form.Grant {
+		case Code:
+			token, err = tokenGetter.NewToken(r.Context(), form)
+		case Refresh:
+			token, err = tokenGetter.RefreshToken(r.Context(), form)
+		}
 		if err != nil {
-			handleGetAccessTokenError(w, err)
+			handleErr(w, err)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(token)
 	}
 }
 
-func handleGetAccessTokenError(w http.ResponseWriter, err error) {
-	switch err {
-	case ErrMismatchingRedirectURI:
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+// TokenForm will be populated from token request
+type TokenForm struct {
+	Grant        GrantType
+	ClientID     string
+	ClientSecret string
+	RedirectURI  string
+	Code         string
+	RefreshToken string
+}
+
+type GrantType string
+
+const (
+	Code    GrantType = "authorization_code"
+	Refresh GrantType = "refresh_token"
+)
+
+func (f TokenForm) GetGrantType() GrantType {
+	return f.Grant
+}
+
+func (f TokenForm) GetClientID() string {
+	return f.ClientID
+}
+
+func (f TokenForm) GetClientSecret() string {
+	return f.ClientSecret
+}
+
+func (f TokenForm) GetRedirectURI() string {
+	return f.RedirectURI
+}
+
+func (f TokenForm) GetCode() string {
+	return f.Code
+}
+
+func (f TokenForm) GetRefreshTokenID() string {
+	return f.RefreshToken
+}
+
+func parseTokenForm(r *http.Request) (form TokenForm, err error) {
+	err = r.ParseForm()
+	if err != nil {
+		return form, err
+	}
+	grantType := r.Form.Get("grant_type")
+	switch grantType {
+	case "authorization_code":
+		return parseAccessTokenForm(r.Form)
+	case "refresh_token":
+		return parseRefreshTokenForm(r.Form)
 	default:
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return form, ErrMissingGrantType
 	}
 }
 
-func parseAccessTokenForm(r *http.Request) (AccessTokenForm, error) {
-	err := r.ParseForm()
-	if err != nil {
-		return AccessTokenForm{}, err
+func parseRefreshTokenForm(values url.Values) (TokenForm, error) {
+	form := TokenForm{
+		Grant:        Refresh,
+		ClientID:     values.Get("client_id"),
+		ClientSecret: values.Get("client_secret"),
+		RefreshToken: values.Get("refresh_token"),
 	}
-	form := AccessTokenForm{
-		GrantType:   r.Form.Get("grant_type"),
-		ClientID:    r.Form.Get("client_id"),
-		RedirectURI: r.Form.Get("redirect_uri"),
-		Code:        r.Form.Get("code"),
+	if form.ClientID == "" {
+		return form, ErrMissingClientID
+	}
+	if form.ClientSecret == "" {
+		return form, ErrMissingClientSecret
+	}
+	if form.RefreshToken == "" {
+		return form, ErrMissingRefreshToken
+	}
+	return form, nil
+}
+
+func parseAccessTokenForm(values url.Values) (TokenForm, error) {
+	form := TokenForm{
+		Grant:       Code,
+		ClientID:    values.Get("client_id"),
+		RedirectURI: values.Get("redirect_uri"),
+		Code:        values.Get("code"),
 	}
 	if form.RedirectURI == "" {
 		return form, ErrMissingRedirectURI
 	}
 	if form.ClientID == "" {
 		return form, ErrMissingClientID
-	}
-	if form.GrantType != "authorization_code" {
-		return form, ErrMissingGrantType
 	}
 	if form.Code == "" {
 		return form, ErrMissingAuthCode
