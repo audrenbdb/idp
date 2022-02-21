@@ -44,7 +44,7 @@ type OAuthServiceOpt struct {
 
 func NewOAuthService(opt OAuthServiceOpt) *oauthService {
 	if opt.NewRandID == nil {
-		opt.NewRandID = rand.IDGenerator(70)
+		opt.NewRandID = rand.IDGenerator(40)
 	}
 	if opt.Now == nil {
 		opt.Now = time.Now
