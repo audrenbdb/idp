@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	mgo "go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"idp"
@@ -44,7 +45,11 @@ func main() {
 func startMongo() *mgo.Database {
 	mongoURI := os.Getenv("MONGO_URI")
 	if mongoURI == "" {
-		log.Println("env variable \"MONGO_URI\" is not set. Using default instead.")
+		fmt.Sprintf(
+			"env variable \"%s\" is not set.\nUsing default: \"%s\" instead.",
+			"MONGO_URI", "mongodb://localhost:27017",
+		)
+		mongoURI = "mongodb://localhost:27017"
 	}
 	client, err := mgo.Connect(context.Background(),
 		options.Client().ApplyURI(mongoURI))
