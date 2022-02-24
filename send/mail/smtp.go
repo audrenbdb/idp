@@ -22,13 +22,13 @@ func (s smtpClient) validate() error {
 		return err
 	}
 	if s.username == "" {
-		return errors.New("smtp username cannot be empty, environment variable SMTP_USERNAME not set")
+		return errors.New("smtp username cannot be empty, environment variable IDP_SMTP_USERNAME not set")
 	}
 	if s.password == "" {
-		return errors.New("smtp password cannot be empty, environment variable SMTP_PASSWORD not set")
+		return errors.New("smtp password cannot be empty, environment variable IDP_SMTP_PASSWORD not set")
 	}
 	if s.host == "" {
-		return errors.New("smtp host cannot be empty, environment variable SMTP_HOST not set")
+		return errors.New("smtp host cannot be empty, environment variable IDP_SMTP_HOST not set")
 	}
 	if s.port == 0 {
 		return errors.New("smtp port cannot be empty")
