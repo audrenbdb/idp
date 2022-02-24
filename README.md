@@ -15,7 +15,7 @@ The consent is **implicit** after user logged in. User identity has the followin
 - lastName: user last name
 - email: user email
 
-For an extensive documentation, please read source and OAuth2 spec as refered : https://datatracker.ietf.org/doc/html/rfc6749
+For an extensive documentation, please read source and OAuth2 spec as referred : https://datatracker.ietf.org/doc/html/rfc6749
 
 ## Database
 
