@@ -6,7 +6,7 @@ import (
 )
 
 // IDGenerator returns a function to generate a random
-// ID of given length.
+// Token of given length.
 func IDGenerator(length int) func() string {
 	generator := StringGenerator()
 	return func() string {

@@ -2,8 +2,11 @@ package idp_test
 
 import (
 	"context"
+	"errors"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"idp"
+	"idp/mock"
 	"idp/repo/inmem"
 	"strings"
 	"testing"
@@ -246,4 +249,141 @@ func TestAuthenticateUser(t *testing.T) {
 		assert.Equal(t, wantBobSession, session)
 	})
 
+}
+
+func TestSendResetPassword(t *testing.T) {
+	t.Run("Given email does not match any user should be unauthorized to reset password", func(t *testing.T) {
+		userRepo := inmem.NewUserRepository()
+		service := idp.NewLoginService(idp.LoginServiceOpt{
+			UserRepo: userRepo,
+		})
+		err := service.ResetPassword(context.Background(), "jon@doe.com", "abc")
+		assert.Equal(t, idp.ErrUserNotFound, err)
+	})
+	t.Run("Given sender fails to send reset token should return error", func(t *testing.T) {
+		ctx := context.Background()
+
+		jon := idp.User{
+			UID:       "xyz",
+			FirstName: "Jon",
+			LastName:  "Doe",
+			Email:     "jondoe@gmail.com",
+		}
+
+		newRandID := newDeterminedIDGenerator("abcd")
+
+		userRepo := inmem.NewUserRepository()
+		userRepo.SaveUser(ctx, jon)
+		ctrl := gomock.NewController(t)
+		mailer := mock.NewSender(ctrl)
+		mailer.EXPECT().
+			SendResetPasswordToken(ctx, jon.Email, "token=abcd").
+			Return(errors.New("fail to send password link"))
+
+		service := idp.NewLoginService(idp.LoginServiceOpt{
+			NewRandID:         newRandID,
+			UserRepo:          userRepo,
+			PasswordResetRepo: inmem.NewPasswordResetRepository(),
+			Sender:            mailer,
+		})
+
+		err := service.ResetPassword(ctx, jon.Email, "")
+		assert.Equal(t, errors.New("fail to send password link"), err)
+	})
+	t.Run("Given email and query should create and send a reset token to the user", func(t *testing.T) {
+		ctx := context.Background()
+
+		jon := idp.User{
+			UID:       "xyz",
+			FirstName: "Jon",
+			LastName:  "Doe",
+			Email:     "jondoe@gmail.com",
+		}
+
+		fakeID := "abcd"
+		newRandID := newDeterminedIDGenerator(fakeID)
+
+		userRepo := inmem.NewUserRepository()
+		userRepo.SaveUser(ctx, jon)
+		pwResetRepo := inmem.NewPasswordResetRepository()
+
+		ctrl := gomock.NewController(t)
+		mailer := mock.NewSender(ctrl)
+		mailer.EXPECT().
+			SendResetPasswordToken(ctx, jon.Email, "token=abcd&foo=bar").
+			Return(nil)
+
+		service := idp.NewLoginService(idp.LoginServiceOpt{
+			NewRandID:         newRandID,
+			UserRepo:          userRepo,
+			PasswordResetRepo: pwResetRepo,
+			Sender:            mailer,
+		})
+
+		err := service.ResetPassword(ctx, jon.Email, "?foo=bar")
+		assert.NoError(t, err)
+
+		pwReset, err := pwResetRepo.GetPasswordReset(ctx, fakeID)
+		assert.NoError(t, err)
+		assert.Equal(t, idp.PasswordReset{
+			Token:        fakeID,
+			User:         jon,
+			InitialQuery: "?foo=bar",
+		}, pwReset)
+	})
+}
+
+func TestUpdatePassword(t *testing.T) {
+	ctx := context.Background()
+	t.Run("Given password is too small should return an error", func(t *testing.T) {
+		service := idp.NewLoginService(idp.LoginServiceOpt{})
+		err := service.UpdatePasswordFromResetToken(ctx, "", "abc")
+		assert.Equal(t, idp.ErrPasswordInvalid, err)
+	})
+
+	t.Run("Given token does not match any password reset should return not found", func(t *testing.T) {
+		repo := inmem.NewPasswordResetRepository()
+		service := idp.NewLoginService(idp.LoginServiceOpt{
+			PasswordResetRepo: repo,
+		})
+		err := service.UpdatePasswordFromResetToken(ctx, "qoziduqzd", "qzdqzd")
+		assert.Equal(t, idp.ErrPasswordResetNotFound, err)
+	})
+	t.Run("Given token is valid new password should be set and token depleted", func(t *testing.T) {
+		bob := idp.User{
+			UID:            "xyz",
+			FirstName:      "Bob",
+			LastName:       "SAP",
+			Email:          "bobsap@ufc.org",
+			HashedPassword: []byte("top_secret"),
+		}
+
+		reset := idp.PasswordReset{
+			Token:        "abc",
+			User:         bob,
+			InitialQuery: "?foo=boar",
+		}
+
+		userRepo := inmem.NewUserRepository()
+		userRepo.SaveUser(ctx, bob)
+
+		pwResetRepo := inmem.NewPasswordResetRepository()
+		pwResetRepo.SavePasswordReset(ctx, reset)
+
+		service := idp.NewLoginService(idp.LoginServiceOpt{
+			UserRepo:          userRepo,
+			PasswordResetRepo: pwResetRepo,
+			HashPassword:      fakeHash,
+		})
+
+		err := service.UpdatePasswordFromResetToken(ctx, reset.Token, "top_secret_ultra")
+		assert.NoError(t, err)
+
+		user, err := userRepo.GetUserByEmail(ctx, bob.Email)
+		assert.NoError(t, err)
+		assert.Equal(t, []byte("top_secret_ultra"), user.HashedPassword)
+
+		_, err = pwResetRepo.GetPasswordReset(ctx, reset.Token)
+		assert.Equal(t, idp.ErrPasswordResetNotFound, err)
+	})
 }

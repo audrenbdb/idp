@@ -4,6 +4,7 @@ type (
 	ErrNotFound     struct{ Err }
 	ErrUnauthorized struct{ Err }
 	ErrBadRequest   struct{ Err }
+	ErrInternal     struct{ Err }
 )
 
 type Err string
@@ -18,6 +19,7 @@ var (
 	ErrClientNotFound        = ErrNotFound{"client not found"}
 	ErrSessionNotFound       = ErrNotFound{"session not found"}
 	ErrUserNotFound          = ErrNotFound{"user not found"}
+	ErrPasswordResetNotFound = ErrNotFound{"password reset not found"}
 
 	ErrSessionExpired          = ErrUnauthorized{"session expired"}
 	ErrAuthorizationExpired    = ErrUnauthorized{"authorization expired"}
@@ -30,10 +32,12 @@ var (
 	ErrUserAlreadyExists       = ErrUnauthorized{"user already exists"}
 	ErrInvalidRefreshToken     = ErrUnauthorized{"refresh token is expired or invalid"}
 
-	ErrMissingAppName         = ErrBadRequest{"request is missing app name"}
-	ErrMissingAppRedirectURIs = ErrBadRequest{"request is missing redirect_uris"}
-	ErrEmailInvalid           = ErrBadRequest{"email is invalid"}
-	ErrEmailMissing           = ErrBadRequest{"email is missing"}
+	ErrMissingAppName            = ErrBadRequest{"request is missing app name"}
+	ErrMissingAppRedirectURIs    = ErrBadRequest{"request is missing redirect_uris"}
+	ErrMissingResetPasswordToken = ErrBadRequest{"request is missing token to reset password"}
+	ErrMissingPassword           = ErrBadRequest{"missing password"}
+	ErrEmailInvalid              = ErrBadRequest{"email is invalid"}
+	ErrEmailMissing              = ErrBadRequest{"email is missing"}
 
 	ErrUserFirstNameInvalid = ErrBadRequest{"first name is invalid"}
 	ErrUserLastNameInvalid  = ErrBadRequest{"last name is invalid"}

@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-//go:generate mockgen -source $GOFILE -destination mock/$GOFILE -package mock -mock_names Authorizer=Authorizer,Authenticator=Authenticator,TokenGetter=TokenGetter,UserAccesser=UserAccesser,ClientMaker=ClientMaker
+//go:generate mockgen -source $GOFILE -destination mock/$GOFILE -package mock -mock_names Authorizer=Authorizer,Authenticator=Authenticator,TokenGetter=TokenGetter,UserAccesser=UserAccesser,ClientMaker=ClientMaker,PasswordSetter=PasswordSetter
 
 const (
 	unauthorizedClient     = "unauthorized_client"
@@ -414,5 +414,62 @@ func informErrorOccured(w http.ResponseWriter, authErr authError) {
 	if err := t.Execute(w, authErr); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+}
+
+type PasswordSetter interface {
+	ResetPassword(ctx context.Context, email string, initialQuery string) error
+	UpdatePasswordFromResetToken(ctx context.Context, token, password string) error
+}
+
+func HandleSetPasswordFromResetToken(setter PasswordSetter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Token       string `json:"token"`
+			NewPassword string `json:"newPassword"`
+		}
+		err := json.NewDecoder(r.Body).Decode(&body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if body.Token == "" {
+			handleErr(w, ErrMissingResetPasswordToken)
+			return
+		}
+		if body.NewPassword == "" {
+			handleErr(w, ErrMissingPassword)
+			return
+		}
+		err = setter.UpdatePasswordFromResetToken(r.Context(), body.Token, body.NewPassword)
+		if err != nil {
+			handleErr(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}
+}
+
+func HandleAskPasswordReset(setter PasswordSetter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Email        string `json:"email"`
+			InitialQuery string `json:"initialQuery"`
+		}
+		err := json.NewDecoder(r.Body).Decode(&body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if body.Email == "" {
+			handleErr(w, ErrEmailMissing)
+			return
+		}
+		err = setter.ResetPassword(r.Context(), body.Email, body.InitialQuery)
+		if err != nil {
+			handleErr(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
 	}
 }

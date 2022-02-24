@@ -6,6 +6,12 @@ import (
 	"time"
 )
 
+type PasswordReset struct {
+	Token        string
+	User         User
+	InitialQuery string
+}
+
 type AccessTokenForm interface {
 	GetCode() string
 	GetRedirectURI() string

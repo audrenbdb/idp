@@ -158,7 +158,7 @@ func (mr *TokenGetterMockRecorder) NewToken(ctx, form interface{}) *gomock.Call 
 // RefreshToken mocks base method.
 func (m *TokenGetter) RefreshToken(ctx context.Context, form idp.RefreshTokenForm) (idp.Token, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Refresh", ctx, form)
+	ret := m.ctrl.Call(m, "RefreshToken", ctx, form)
 	ret0, _ := ret[0].(idp.Token)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
@@ -167,7 +167,7 @@ func (m *TokenGetter) RefreshToken(ctx context.Context, form idp.RefreshTokenFor
 // RefreshToken indicates an expected call of RefreshToken.
 func (mr *TokenGetterMockRecorder) RefreshToken(ctx, form interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Refresh", reflect.TypeOf((*TokenGetter)(nil).RefreshToken), ctx, form)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshToken", reflect.TypeOf((*TokenGetter)(nil).RefreshToken), ctx, form)
 }
 
 // UserAccesser is a mock of UserAccesser interface.
@@ -244,4 +244,55 @@ func (m *ClientMaker) NewClient(ctx context.Context, appName string, redirectURI
 func (mr *ClientMakerMockRecorder) NewClient(ctx, appName, redirectURIs interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewClient", reflect.TypeOf((*ClientMaker)(nil).NewClient), ctx, appName, redirectURIs)
+}
+
+// PasswordSetter is a mock of PasswordSetter interface.
+type PasswordSetter struct {
+	ctrl     *gomock.Controller
+	recorder *PasswordSetterMockRecorder
+}
+
+// PasswordSetterMockRecorder is the mock recorder for PasswordSetter.
+type PasswordSetterMockRecorder struct {
+	mock *PasswordSetter
+}
+
+// NewPasswordSetter creates a new mock instance.
+func NewPasswordSetter(ctrl *gomock.Controller) *PasswordSetter {
+	mock := &PasswordSetter{ctrl: ctrl}
+	mock.recorder = &PasswordSetterMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *PasswordSetter) EXPECT() *PasswordSetterMockRecorder {
+	return m.recorder
+}
+
+// ResetPassword mocks base method.
+func (m *PasswordSetter) ResetPassword(ctx context.Context, email, initialQuery string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResetPassword", ctx, email, initialQuery)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ResetPassword indicates an expected call of ResetPassword.
+func (mr *PasswordSetterMockRecorder) ResetPassword(ctx, email, initialQuery interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetPassword", reflect.TypeOf((*PasswordSetter)(nil).ResetPassword), ctx, email, initialQuery)
+}
+
+// UpdatePasswordFromResetToken mocks base method.
+func (m *PasswordSetter) UpdatePasswordFromResetToken(ctx context.Context, token, password string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdatePasswordFromResetToken", ctx, token, password)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdatePasswordFromResetToken indicates an expected call of UpdatePasswordFromResetToken.
+func (mr *PasswordSetterMockRecorder) UpdatePasswordFromResetToken(ctx, token, password interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePasswordFromResetToken", reflect.TypeOf((*PasswordSetter)(nil).UpdatePasswordFromResetToken), ctx, token, password)
 }

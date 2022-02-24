@@ -2,11 +2,14 @@ package idp
 
 import (
 	"context"
+	"fmt"
 	"idp/password"
 	"idp/rand"
 	"strings"
 	"time"
 )
+
+//go:generate mockgen -source $GOFILE -destination mock/$GOFILE -package mock -mock_names Sender=Sender
 
 type UserRepository interface {
 	SaveUser(ctx context.Context, user User) (User, error)
@@ -18,9 +21,21 @@ type SessionRepository interface {
 	GetSessionByID(ctx context.Context, id string) (Session, error)
 }
 
+type PasswordResetRepository interface {
+	SavePasswordReset(ctx context.Context, reset PasswordReset) (PasswordReset, error)
+	GetPasswordReset(ctx context.Context, id string) (PasswordReset, error)
+	DeletePasswordReset(ctx context.Context, id string) error
+}
+
+type Sender interface {
+	SendResetPasswordToken(ctx context.Context, email, link string) error
+}
+
 type loginService struct {
 	userRepo    UserRepository
 	sessionRepo SessionRepository
+	pwResetRepo PasswordResetRepository
+	sender      Sender
 
 	hashPassword      func(pw string) ([]byte, error)
 	passwordMatchHash func(pw string, hash []byte) bool
@@ -29,8 +44,10 @@ type loginService struct {
 }
 
 type LoginServiceOpt struct {
-	UserRepo    UserRepository
-	SessionRepo SessionRepository
+	UserRepo          UserRepository
+	SessionRepo       SessionRepository
+	PasswordResetRepo PasswordResetRepository
+	Sender            Sender
 
 	HashPassword      func(pw string) ([]byte, error)
 	PasswordMatchHash func(pw string, hash []byte) bool
@@ -52,13 +69,58 @@ func NewLoginService(opt LoginServiceOpt) *loginService {
 		opt.Now = time.Now
 	}
 	return &loginService{
-		userRepo:          opt.UserRepo,
-		sessionRepo:       opt.SessionRepo,
+		userRepo:    opt.UserRepo,
+		sessionRepo: opt.SessionRepo,
+		pwResetRepo: opt.PasswordResetRepo,
+
+		sender: opt.Sender,
+
 		hashPassword:      opt.HashPassword,
 		passwordMatchHash: opt.PasswordMatchHash,
 		newRandID:         opt.NewRandID,
 		now:               opt.Now,
 	}
+}
+
+func (s *loginService) ResetPassword(ctx context.Context, email, initialQuery string) error {
+	user, err := s.userRepo.GetUserByEmail(ctx, email)
+	if err != nil {
+		return err
+	}
+	pwReset, err := s.pwResetRepo.SavePasswordReset(ctx, PasswordReset{
+		Token:        s.newRandID(),
+		User:         user,
+		InitialQuery: initialQuery,
+	})
+	if err != nil {
+		return err
+	}
+	link := fmt.Sprintf("token=%s", pwReset.Token)
+	if pwReset.InitialQuery != "" {
+		link += "&" + strings.TrimPrefix(initialQuery, "?")
+	}
+	return s.sender.SendResetPasswordToken(ctx, user.Email, link)
+}
+
+func (s *loginService) UpdatePasswordFromResetToken(ctx context.Context, token, password string) error {
+	if len(password) < 6 {
+		return ErrPasswordInvalid
+	}
+	pwReset, err := s.pwResetRepo.GetPasswordReset(ctx, token)
+	if err != nil {
+		return err
+	}
+	user := pwReset.User
+	err = s.pwResetRepo.DeletePasswordReset(ctx, pwReset.Token)
+	if err != nil {
+		return err
+	}
+	user.HashedPassword, err = s.hashPassword(password)
+	if err != nil {
+		return err
+	}
+	_, err = s.userRepo.SaveUser(ctx, user)
+	return err
 }
 
 func (s *loginService) SignIn(ctx context.Context, cred Credential) (Session, error) {

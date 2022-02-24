@@ -2,16 +2,35 @@
 
 This projects exposes a simple email/password OAuth2 identity provider.
 
+## Requirements
+
+Following environment variables must be set :
+- IDP_REPLY_TO : mail sent will have their reply-to header with this variable. Exemple: `noreply@idp.org`
+
 ## Database
 
 Server is running with mongo db. You may need to set environment variable: MONGO_URI.
 
 Otherwise use default mongo uri: `mongodb://localhost:27017`
 
+## Mailer
+
+A mailer is there to send emails to users that forgot their password.
+
+By default, Postfix is used to send emails, but you can set it to use an SMTP external server.
+
+If you use SMTP, you **need** this environment variables set :
+- IDP_SMTP_USERNAME
+- IDP_SMTP_PASSWORD
+- IDP_SMTP_HOST
+
+
 ## Options :
 
-- `-addr localhost:8080` : change default idp server address
-- `-name Googal` : change the name of the idp
+- `-port 8080` : set idp port
+- `-name Googal` : set idp name
+- `-addr http://localhost:8080` : set idp url
+- `-mailer postfix` : set default mailer. Other options : `smtp`.
 
 ## Endpoints
 

@@ -880,9 +880,9 @@ func TestHandleAuth(t *testing.T) {
 		result := w.Result()
 
 		loc := result.Header.Get("location")
-		wantLoc := fmt.Sprintf("%s?Code=%s&state=%s",
+		wantLoc := fmt.Sprintf("%s?code=%s&state=%s",
 			form.RedirectURI, wantAuthCode, form.State)
-		assert.Equal(t, loc, wantLoc)
+		assert.Equal(t, wantLoc, loc)
 		assert.Equal(t, http.StatusFound, result.StatusCode)
 	})
 
@@ -971,5 +971,130 @@ func TestHandleAuth(t *testing.T) {
 		assert.Equal(t, loc, wantLoc)
 		assert.Equal(t, http.StatusFound, result.StatusCode)
 	})
+}
 
+func TestHandleAskPasswordReset(t *testing.T) {
+	t.Run("Given request is missing email in its body, should return bad request", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{}`))
+
+		idp.HandleAskPasswordReset(nil)(w, r)
+
+		result := w.Result()
+		body, err := io.ReadAll(result.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, result.StatusCode)
+		assert.Contains(t, string(body), idp.ErrEmailMissing.Error())
+	})
+
+	t.Run("Given server fails should return its error in the response", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{
+			"email":"jon@doe.com",
+			"initialQuery":"?foo=bar"
+		}`))
+
+		ctrl := gomock.NewController(t)
+		setter := mock.NewPasswordSetter(ctrl)
+		setter.EXPECT().
+			ResetPassword(r.Context(), "jon@doe.com", "?foo=bar").
+			Return(idp.ErrUnauthorized{Err: "email not authorized"})
+
+		idp.HandleAskPasswordReset(setter)(w, r)
+
+		result := w.Result()
+		body, err := io.ReadAll(result.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusUnauthorized, result.StatusCode)
+		assert.Contains(t, string(body), "email not authorized")
+	})
+
+	t.Run("Given server succeed should return 202 success", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{
+			"email":"bobsap@ufc.org",
+			"initialQuery":"?bar=foo"
+		}`))
+
+		ctrl := gomock.NewController(t)
+		setter := mock.NewPasswordSetter(ctrl)
+		setter.EXPECT().
+			ResetPassword(r.Context(), "bobsap@ufc.org", "?bar=foo").
+			Return(nil)
+
+		idp.HandleAskPasswordReset(setter)(w, r)
+
+		result := w.Result()
+		assert.Equal(t, http.StatusAccepted, result.StatusCode)
+	})
+}
+
+func TestHandlePutPassword(t *testing.T) {
+	t.Run("Given request is missing token should return bad request", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{
+			"newPassword":"123456"
+		}`))
+
+		idp.HandleSetPasswordFromResetToken(nil)(w, r)
+
+		result := w.Result()
+		body, err := io.ReadAll(result.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, result.StatusCode)
+		assert.Contains(t, string(body), idp.ErrMissingResetPasswordToken.Error())
+	})
+	t.Run("Given request is missing new password should return bad request", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{
+			"token":"abc"
+		}`))
+		idp.HandleSetPasswordFromResetToken(nil)(w, r)
+
+		result := w.Result()
+		body, err := io.ReadAll(result.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, result.StatusCode)
+		assert.Contains(t, string(body), idp.ErrMissingPassword.Error())
+	})
+	t.Run("Given request should return error if server fails to set new password", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{
+			"token":"abc",
+			"newPassword":"xyz_secret"
+		}`))
+
+		ctrl := gomock.NewController(t)
+		setter := mock.NewPasswordSetter(ctrl)
+		setter.EXPECT().
+			UpdatePasswordFromResetToken(r.Context(), "abc", "xyz_secret").
+			Return(errors.New("internal error"))
+
+		idp.HandleSetPasswordFromResetToken(setter)(w, r)
+
+		result := w.Result()
+		body, err := io.ReadAll(result.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+		assert.Contains(t, string(body), "internal error")
+	})
+
+	t.Run("Given request should update password properly and return 202 status", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{
+			"token":"abc",
+			"newPassword":"xyz_secret"
+		}`))
+
+		ctrl := gomock.NewController(t)
+		setter := mock.NewPasswordSetter(ctrl)
+		setter.EXPECT().
+			UpdatePasswordFromResetToken(r.Context(), "abc", "xyz_secret").
+			Return(nil)
+
+		idp.HandleSetPasswordFromResetToken(setter)(w, r)
+
+		result := w.Result()
+		assert.Equal(t, http.StatusAccepted, result.StatusCode)
+	})
 }

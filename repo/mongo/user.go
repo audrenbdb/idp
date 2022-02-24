@@ -5,6 +5,7 @@ import (
 	"errors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"idp"
 )
 
@@ -19,7 +20,11 @@ func NewUserRepository(db *mongo.Database) *userRepository {
 }
 
 func (r *userRepository) SaveUser(ctx context.Context, user idp.User) (idp.User, error) {
-	_, err := r.users.InsertOne(ctx, user)
+	opts := options.Update().SetUpsert(true)
+	_, err := r.users.UpdateOne(ctx,
+		bson.M{"uid": user.UID},
+		bson.M{"$set": user},
+		opts)
 	return user, err
 }
 

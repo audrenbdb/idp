@@ -34,10 +34,11 @@
 
     .center-wrapper .container {
         margin: auto;
-        max-width: 500px;
+        max-width: 400px;
+        width: 100%;
     }
 
-    h2, form h3, #error, #toggle-sign {
+    h1, h2, form h3, #error, #toggle-sign, #forgot-pw, #success {
         text-align: center;
     }
 
@@ -59,6 +60,10 @@
         border: none;
     }
 
+    button:disabled {
+        background-color:darkgrey;
+    }
+
     button, input {
         width: 100%;
         border-radius: .25rem;
@@ -66,6 +71,11 @@
 
     #error {
         color: red;
+        margin: 20px;
+    }
+
+    #success {
+        color: green;
         margin: 20px;
     }
 
