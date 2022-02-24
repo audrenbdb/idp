@@ -12,11 +12,11 @@ type postFixClient struct {
 	idp idp
 }
 
-func NewPostFixClient(idpAddr, idpName string) *postFixClient {
+func NewPostFixClient(idpAddr, idpName, mailFrom string) *postFixClient {
 	idp := idp{
-		addr:    idpAddr,
-		name:    idpName,
-		replyTo: os.Getenv("IDP_REPLY_TO"),
+		addr:     idpAddr,
+		name:     idpName,
+		mailFrom: mailFrom,
 	}
 	err := idp.validate()
 	if err != nil {

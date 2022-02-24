@@ -7,9 +7,9 @@ import (
 )
 
 type idp struct {
-	addr    string
-	name    string
-	replyTo string
+	addr     string
+	name     string
+	mailFrom string
 }
 
 func (i idp) validate() error {
@@ -19,7 +19,7 @@ func (i idp) validate() error {
 	if i.name == "" {
 		return errors.New("idp name cannot be empty")
 	}
-	if i.replyTo == "" {
+	if i.mailFrom == "" {
 		return errors.New("\"reply to\" cannot be empty, set environment variable \"IDP_REPLY_TO\"")
 	}
 	return nil
@@ -29,8 +29,7 @@ func newResetPasswordEmail(idp idp, email, args string) *gomail.Message {
 	uri := fmt.Sprintf("%s/set-password?%s", idp.addr, args)
 
 	m := gomail.NewMessage()
-	m.SetAddressHeader("From", idp.replyTo, idp.name)
-	m.SetHeader("Reply-To", idp.replyTo)
+	m.SetAddressHeader("From", idp.mailFrom, idp.name)
 	m.SetHeader("To", email)
 	m.SetHeader("Subject", "Password reset")
 	m.SetBody(

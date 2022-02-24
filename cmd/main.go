@@ -14,6 +14,8 @@ import (
 	"os"
 )
 
+const defaultNoReply = "no-reply@idp.org"
+
 var port = flag.Int("port", 8080, "Set the idp port")
 
 // addr when creating external link to your service
@@ -26,6 +28,7 @@ var name = flag.String("name", "App", "Your idp name")
 //     - postfix
 // defaults to postfix
 var mailer = flag.String("mailer", "postfix", "Set email system. Defaults to postfix")
+var mailFrom = flag.String("mailFrom", defaultNoReply, "Set address to use in the \"FROM\" header of reset password email. Default to \"no-reply@idp.org\"")
 
 func main() {
 	flag.Parse()
@@ -61,7 +64,7 @@ func main() {
 func startMongo() *mgo.Database {
 	mongoURI := os.Getenv("MONGO_URI")
 	if mongoURI == "" {
-		fmt.Println(fmt.Sprintf(
+		log.Println(fmt.Sprintf(
 			"env variable \"%s\" is not set.\nUsing default: \"%s\" instead.",
 			"MONGO_URI", "mongodb://localhost:27017",
 		))
@@ -76,10 +79,15 @@ func startMongo() *mgo.Database {
 }
 
 func getSender() idp.Sender {
+	if *mailFrom == defaultNoReply {
+		log.Println(fmt.Sprintf("mailFrom argument not provided.\n"+
+			"Email header \"FROM\" will be set to: \"%s\", which may be confusing.\n"+
+			"Email are sent when user asks for password reset.", *mailFrom))
+	}
 	switch *mailer {
 	case "smtp":
-		return mail.NewSMTPClient(*addr, *name)
+		return mail.NewSMTPClient(*addr, *name, *mailFrom)
 	default:
-		return mail.NewPostFixClient(*addr, *name)
+		return mail.NewPostFixClient(*addr, *name, *mailFrom)
 	}
 }

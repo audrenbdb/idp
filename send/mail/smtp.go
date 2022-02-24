@@ -36,12 +36,12 @@ func (s smtpClient) validate() error {
 	return nil
 }
 
-func NewSMTPClient(idpAddr, idpName string) *smtpClient {
+func NewSMTPClient(idpAddr, idpName, mailFrom string) *smtpClient {
 	client := &smtpClient{
 		idp: idp{
-			addr:    idpAddr,
-			name:    idpName,
-			replyTo: os.Getenv("IDP_REPLY_TO"),
+			addr:     idpAddr,
+			name:     idpName,
+			mailFrom: mailFrom,
 		},
 		username: os.Getenv("IDP_SMTP_USERNAME"),
 		password: os.Getenv("IDP_SMTP_PASSWORD"),
