@@ -2,6 +2,21 @@
 
 This projects exposes a simple email/password OAuth2 identity provider.
 
+## Endpoints
+
+- `/auth` : generate authorization code
+- `/client` : register a new oauth2 client consumer
+- `/token` : get an access token from an authorization code
+- `/user` : get user identity
+
+The consent is **implicit** after user logged in. User identity has the following properties :
+- uid: a unique identifier
+- firstName: user first name
+- lastName: user last name
+- email: user email
+
+For an extensive documentation, please read source and OAuth2 spec as refered : https://datatracker.ietf.org/doc/html/rfc6749
+
 ## Requirements
 
 Following environment variables must be set :
@@ -31,19 +46,4 @@ If you use SMTP, you **need** this environment variables set :
 - `-name Googal` : set idp name
 - `-addr http://localhost:8080` : set idp url
 - `-mailer postfix` : set default mailer. Other options : `smtp`.
-
-## Endpoints
-
-- `/auth` : generate authorization code
-- `/client` : register a new oauth2 client consumer
-- `/token` : get an access token from an authorization code
-- `/user` : get user identity
-
-The consent is **implicit** after user logged in. User identity has the following properties :
-- uid: a unique identifier
-- firstName: user first name
-- lastName: user last name
-- email: user email
-
-For an extensive documentation, please read source and OAuth2 spec as refered : https://datatracker.ietf.org/doc/html/rfc6749
-
+- 
